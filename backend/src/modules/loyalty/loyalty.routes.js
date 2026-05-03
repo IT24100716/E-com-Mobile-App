@@ -1,0 +1,15 @@
+const express = require("express");
+const loyaltyController = require("./loyalty.controller");
+const authMiddleware = require("../../middleware/auth.middleware");
+const roleMiddleware = require("../../middleware/role.middleware");
+const validateRequest = require("../../middleware/validate.middleware");
+const { addPointsSchema, updatePointsSchema } = require("./loyalty.validation");
+const router = express.Router();
+router.post("/", authMiddleware, roleMiddleware("admin", "loyalty manager"), validateRequest(addPointsSchema), loyaltyController.addPoints.bind(loyaltyController));
+router.get("/all", authMiddleware, roleMiddleware("admin", "loyalty manager"), loyaltyController.getAll.bind(loyaltyController));
+router.get("/members", authMiddleware, roleMiddleware("admin", "loyalty manager"), loyaltyController.getMembers.bind(loyaltyController));
+router.get("/", authMiddleware, loyaltyController.getBalance.bind(loyaltyController));
+router.get("/history", authMiddleware, loyaltyController.getHistory.bind(loyaltyController));
+router.put("/:id", authMiddleware, roleMiddleware("admin", "loyalty manager"), validateRequest(updatePointsSchema), loyaltyController.update.bind(loyaltyController));
+router.delete("/:id", authMiddleware, roleMiddleware("admin", "loyalty manager"), loyaltyController.delete.bind(loyaltyController));
+module.exports = router;

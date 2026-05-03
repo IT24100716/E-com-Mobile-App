@@ -1,0 +1,15 @@
+const express = require("express");
+const returnsController = require("./returns.controller");
+const authMiddleware = require("../../middleware/auth.middleware");
+const roleMiddleware = require("../../middleware/role.middleware");
+const validateRequest = require("../../middleware/validate.middleware");
+const multer = require("../../config/multerMemory");
+const { createReturnSchema, updateStatusSchema } = require("./returns.validation");
+const router = express.Router();
+router.post("/", authMiddleware, multer.single("image"), validateRequest(createReturnSchema), returnsController.create.bind(returnsController));
+router.get("/", authMiddleware, roleMiddleware("admin", "review manager", "product manager"), returnsController.getAll.bind(returnsController));
+router.get("/:id", authMiddleware, returnsController.getById.bind(returnsController));
+router.put("/:id/status", authMiddleware, roleMiddleware("admin", "review manager", "product manager"), validateRequest(updateStatusSchema), returnsController.updateStatus.bind(returnsController));
+router.delete("/:id/cancel", authMiddleware, returnsController.cancelByUser.bind(returnsController));
+router.delete("/:id", authMiddleware, roleMiddleware("admin", "review manager", "product manager"), returnsController.delete.bind(returnsController));
+module.exports = router;

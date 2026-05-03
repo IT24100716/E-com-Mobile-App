@@ -1,0 +1,12 @@
+const express = require("express");
+const dashboardController = require("./dashboard.controller");
+const authMiddleware = require("../../middleware/auth.middleware");
+const roleMiddleware = require("../../middleware/role.middleware");
+const router = express.Router();
+router.get("/", authMiddleware, roleMiddleware("admin", "product manager", "order manager", "loyalty manager", "user manager", "review manager", "supplier manager", "staff"), dashboardController.getDashboardData.bind(dashboardController));
+router.get("/supplier", authMiddleware, roleMiddleware("admin", "supplier manager", "staff"), dashboardController.getSupplierDashboardData.bind(dashboardController));
+router.get("/order", authMiddleware, roleMiddleware("admin", "order manager", "staff"), dashboardController.getOrderDashboardData.bind(dashboardController));
+router.get("/review", authMiddleware, roleMiddleware("admin", "review manager", "staff"), dashboardController.getReviewDashboardData.bind(dashboardController));
+router.get("/loyalty", authMiddleware, roleMiddleware("admin", "loyalty manager", "staff"), dashboardController.getLoyaltyDashboardData.bind(dashboardController));
+router.get("/overall", authMiddleware, roleMiddleware("admin"), dashboardController.getAdminOverallData.bind(dashboardController));
+module.exports = router;

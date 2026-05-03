@@ -1,0 +1,21 @@
+const express = require("express");
+const ordersController = require("./orders.controller");
+const authMiddleware = require("../../middleware/auth.middleware");
+const roleMiddleware = require("../../middleware/role.middleware");
+const validateRequest = require("../../middleware/validate.middleware");
+const { createOrderSchema, updateOrderSchema } = require("./orders.validation");
+
+const router = express.Router();
+router.post("/", authMiddleware, validateRequest(createOrderSchema), ordersController.create.bind(ordersController));
+router.post("/return-replacement", authMiddleware, roleMiddleware("admin", "product manager", "review manager"), ordersController.createReturnOrder.bind(ordersController));
+router.get("/", authMiddleware, ordersController.getAll.bind(ordersController));
+router.get("/:id", authMiddleware, ordersController.getById.bind(ordersController));
+router.put("/:id", authMiddleware, validateRequest(updateOrderSchema), ordersController.updateByUser.bind(ordersController));
+router.delete("/:id/cancel", authMiddleware, ordersController.cancelByUser.bind(ordersController));
+router.put("/:id/status", authMiddleware, roleMiddleware("admin", "order manager"), ordersController.updateStatus.bind(ordersController));
+router.post("/:id/refund", authMiddleware, roleMiddleware("admin", "order manager"), ordersController.processRefund.bind(ordersController));
+router.delete("/:id", authMiddleware, roleMiddleware("admin", "order manager"), ordersController.delete.bind(ordersController));
+router.post("/:id/apply-discount", authMiddleware, ordersController.applyDiscount.bind(ordersController));
+router.post("/:id/save-discount", authMiddleware, ordersController.saveDiscount.bind(ordersController));
+router.get("/:id/discount", authMiddleware, ordersController.getDiscountDetails.bind(ordersController));
+module.exports = router;
