@@ -124,8 +124,8 @@ const ForgotPasswordScreen = ({ navigation }) => {
                   value={otp}
                   onChangeText={setOtp}
                 />
-                <TouchableOpacity 
-                  style={[styles.primaryBtn, otp.length < 6 && styles.disabledBtn]} 
+                <TouchableOpacity
+                  style={[styles.primaryBtn, otp.length < 6 && styles.disabledBtn]}
                   onPress={handleVerifyOTP}
                   disabled={loading || otp.length < 6}
                 >

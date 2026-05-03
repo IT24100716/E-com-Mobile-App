@@ -58,7 +58,8 @@ const AdminOrderDetailScreen = ({ route, navigation }) => {
       Alert.alert('Success', `Order status updated to ${newStatus}`);
     } catch (error) {
       console.error('Update status error:', error);
-      Alert.alert('Error', 'Failed to update status');
+      const errorMsg = error.response?.data?.message || 'Failed to update status';
+      Alert.alert('Error', errorMsg);
     } finally {
       setUpdating(false);
     }

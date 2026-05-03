@@ -70,7 +70,12 @@ const AdminOrdersScreen = ({ navigation }) => {
       Alert.alert('Success', `Order status updated to ${newStatus}`);
     } catch (error) {
       console.error('Update order status error:', error);
-      Alert.alert('Error', 'Failed to update order status');
+      if (error.response) {
+        console.error('Error response data:', error.response.data);
+        Alert.alert('Error', `Failed: ${error.response.data.message || 'Unknown error'}`);
+      } else {
+        Alert.alert('Error', 'Failed to update order status');
+      }
     } finally {
       setUpdating(false);
     }

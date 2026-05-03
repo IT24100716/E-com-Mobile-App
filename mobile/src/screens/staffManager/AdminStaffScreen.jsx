@@ -180,7 +180,9 @@ const AdminStaffScreen = ({ navigation }) => {
           <Text style={styles.headerTitle}>STAFF MEMBERS</Text>
           <Text style={styles.headerSub}>{staff.length} registered accounts</Text>
         </View>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity onPress={() => { resetForm(); setIsModalOpen(true); }} style={styles.addBtnHeader}>
+          <Feather name="plus-circle" size={24} color="#000" />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.searchContainer}>
@@ -343,6 +345,9 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F0F0F0'
   },
   backBtn: {
+    padding: 5
+  },
+  addBtnHeader: {
     padding: 5
   },
   headerTitleContainer: {

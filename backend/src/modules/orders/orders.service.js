@@ -383,19 +383,27 @@ class OrdersService {
   async getAll(userId, skip = 0, take = 10, isAdmin = false) { const where = isAdmin ? { isDeleted: false } : { userId, isDeleted: false }; return prisma.order.findMany({ where, include: { user: true, items: { include: { product: true } }, payment: true, orderDiscount: true }, skip, take, orderBy: { createdAt: "desc" } }); }
   async getById(id) { return prisma.order.findUnique({ where: { id }, include: { user: true, items: { include: { product: true } }, payment: true, returns: true, orderDiscount: true, reviews: true } }); }
   async updateStatus(id, status) {
+    console.log(`[OrdersService] Starting status update for ${id} to "${status}"`);
     return await prisma.$transaction(async (tx) => {
       const existingOrder = await tx.order.findUnique({
         where: { id },
         include: { items: { include: { product: true } }, orderDiscount: true }
       });
-      if (!existingOrder) throw new Error("Order not found");
 
-      // Handle Cancellation logic
+      if (!existingOrder) {
+        console.error(`[OrdersService] Order ${id} not found`);
+        throw new Error("Order not found");
+      }
+
+      console.log(`[OrdersService] current status: "${existingOrder.status}"`);
+
+      // 1. Handle Cancellation logic (if moving TO cancelled)
       if (status === "cancelled" && existingOrder.status !== "cancelled") {
+        console.log(`[OrdersService] Processing cancellation for order ${id}`);
         // Restore stock
         await this.#restoreStock(existingOrder.items, tx);
         
-        // 1. Refund REDEEMED points (Repush to customer)
+        // Refund REDEEMED points (Repush to customer)
         if (existingOrder.orderDiscount?.pointsUsed > 0) {
           await tx.loyaltyTransaction.create({
             data: {
@@ -408,7 +416,7 @@ class OrdersService {
           });
         }
 
-        // 2. Reverse EARNED points (Deduct if already awarded)
+        // Reverse EARNED points (Deduct if already awarded)
         const previouslyAwarded = ["confirmed", "shipped", "delivered"].includes(existingOrder.status);
         if (previouslyAwarded) {
           const earned = existingOrder.orderDiscount?.earnedPoints || Math.floor(existingOrder.total / 100);
@@ -416,7 +424,7 @@ class OrdersService {
             await tx.loyaltyTransaction.create({
               data: {
                 userId: existingOrder.userId,
-                points: -earned,
+                points: -Math.floor(earned),
                 type: "reversed",
                 reason: `Order #${existingOrder.id.slice(-8).toUpperCase()} cancelled (Points reversed)`,
                 orderId: existingOrder.id
@@ -437,24 +445,43 @@ class OrdersService {
         include: { items: { include: { product: true } }, payment: true, orderDiscount: true }
       });
 
-      // Award loyalty points when order is confirmed
-      if (status === "confirmed" && existingOrder.status !== "confirmed") {
-        const earnedPoints = order.orderDiscount?.earnedPoints || Math.floor(order.total / 100);
-        if (earnedPoints > 0) {
-          await tx.loyaltyTransaction.create({
-            data: {
-              userId: order.userId,
-              points: earnedPoints,
-              type: "earned",
-              reason: `Order #${order.id.slice(-8).toUpperCase()} confirmed`,
-              orderId: order.id
-            }
-          });
+      // 2. Award loyalty points when order is confirmed OR shipped OR delivered (first time)
+      const reachingAwardedStatus = ["confirmed", "shipped", "delivered"].includes(status);
+      const wasNotAwarded = !["confirmed", "shipped", "delivered"].includes(existingOrder.status);
+
+      if (reachingAwardedStatus && wasNotAwarded) {
+        try {
+          console.log(`[OrdersService] Awarding points for order ${id} (status: ${status})`);
+          const baseTotal = order.total || 0;
+          const calculatedPoints = order.orderDiscount?.earnedPoints || (baseTotal / 100);
+          const earnedPoints = Math.floor(Number(calculatedPoints) || 0);
+          
+          if (earnedPoints > 0) {
+            const orderIdStr = String(order.id);
+            const userIdStr = String(order.userId);
+            console.log(`[OrdersService] Creating loyalty tx: User=${userIdStr}, Points=${earnedPoints}`);
+            await tx.loyaltyTransaction.create({
+              data: {
+                user: { connect: { id: userIdStr } },
+                points: earnedPoints,
+                type: "earned",
+                reason: `Order #${orderIdStr.slice(-8).toUpperCase()} ${status}`,
+                orderId: orderIdStr
+              }
+            });
+            console.log(`[OrdersService] Loyalty transaction created successfully`);
+          }
+        } catch (loyaltyError) {
+          console.error(`[OrdersService] ❌ Loyalty awarding failed for order ${id}:`, loyaltyError);
+          // We might choose to ignore loyalty errors to allow status update, 
+          // but if it's a critical system error, we should know.
+          throw new Error(`Loyalty Processing Error: ${loyaltyError.message}`);
         }
       }
 
-      // Send status update email (fire-and-forget after transaction)
-      this.#sendOrderStatusEmail(order).catch(console.error);
+      // 3. Send status update email (fire-and-forget after transaction)
+      console.log(`[OrdersService] Sending status email for ${id}`);
+      this.#sendOrderStatusEmail(order).catch(err => console.error("[OrdersService] Email failed:", err));
 
       return order;
     });
