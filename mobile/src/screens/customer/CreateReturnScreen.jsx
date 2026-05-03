@@ -105,7 +105,7 @@ const CreateReturnScreen = ({ route, navigation }) => {
     const mainImage = images[0] || product?.imageUrl;
     if (!mainImage) return 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500&auto=format&fit=crop&q=60';
     if (typeof mainImage === 'string' && mainImage.startsWith('http')) return mainImage;
-    return `http://192.168.8.134:5001${mainImage.startsWith('/') ? '' : '/'}${mainImage}`;
+    return `https://e-com-mobile-app-production.up.railway.app${mainImage.startsWith('/') ? '' : '/'}${mainImage}`;
   };
 
   return (

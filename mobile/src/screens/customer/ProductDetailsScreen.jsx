@@ -53,7 +53,7 @@ const ProductDetailsScreen = ({ navigation, route }) => {
     const path = typeof mainImage === 'string' ? mainImage : mainImage.url;
     if (!path) return 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500&auto=format&fit=crop&q=60';
     const cleanPath = path.startsWith('/') ? path : `/${path}`;
-    return `http://192.168.8.134:5001${cleanPath}`;
+    return `https://e-com-mobile-app-production.up.railway.app${cleanPath}`;
   };
 
   const imageUrl = getImageUrl(product);

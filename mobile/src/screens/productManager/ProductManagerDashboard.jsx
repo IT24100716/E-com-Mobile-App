@@ -45,7 +45,7 @@ const ProductManagerDashboard = ({ navigation }) => {
     if (!url || typeof url !== 'string') return 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&q=80';
     const cleanUrl = url.trim();
     if (cleanUrl.startsWith('http')) return cleanUrl;
-    return `http://192.168.8.134:5001${cleanUrl.startsWith('/') ? '' : '/'}${cleanUrl}`;
+    return `https://e-com-mobile-app-production.up.railway.app${cleanUrl.startsWith('/') ? '' : '/'}${cleanUrl}`;
   };
 
   // Prepare chart data

@@ -102,7 +102,7 @@ const CreateRestockRequestScreen = ({ navigation, route }) => {
     if (cleanUrl.startsWith('http')) return cleanUrl;
     
     // Ensure relative paths are handled correctly
-    const baseUrl = 'http://192.168.8.134:5001';
+    const baseUrl = 'https://e-com-mobile-app-production.up.railway.app';
     const separator = cleanUrl.startsWith('/') ? '' : '/';
     return `${baseUrl}${separator}${cleanUrl}`;
   };

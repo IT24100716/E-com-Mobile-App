@@ -310,7 +310,7 @@ const AdminReturnsScreen = ({ navigation }) => {
             <Text style={styles.fulfillmentLabel}>SENT REPLACEMENT</Text>
             <View style={styles.fulfillmentRow}>
               <Image 
-                source={{ uri: fulfillment.imageUrl?.startsWith('http') ? fulfillment.imageUrl : `http://192.168.8.134:5001${fulfillment.imageUrl}` }} 
+                source={{ uri: fulfillment.imageUrl?.startsWith('http') ? fulfillment.imageUrl : `https://e-com-mobile-app-production.up.railway.app${fulfillment.imageUrl}` }} 
                 style={styles.fulfillmentImage} 
               />
               <View style={styles.fulfillmentText}>

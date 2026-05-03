@@ -101,7 +101,7 @@ const AdminPaymentsScreen = ({ navigation }) => {
   const getImageUrl = (url) => {
     if (!url) return null;
     if (url.startsWith('http')) return url;
-    return `http://192.168.8.134:5001${url.startsWith('/') ? '' : '/'}${url}`;
+    return `https://e-com-mobile-app-production.up.railway.app${url.startsWith('/') ? '' : '/'}${url}`;
   };
 
   const renderPaymentItem = ({ item }) => (

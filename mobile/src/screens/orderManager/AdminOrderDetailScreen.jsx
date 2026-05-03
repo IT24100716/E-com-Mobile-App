@@ -68,7 +68,7 @@ const AdminOrderDetailScreen = ({ route, navigation }) => {
   const getImageUrl = (url) => {
     if (!url) return 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500';
     if (url.startsWith('http')) return url;
-    return `http://192.168.8.134:5001${url.startsWith('/') ? '' : '/'}${url}`;
+    return `https://e-com-mobile-app-production.up.railway.app${url.startsWith('/') ? '' : '/'}${url}`;
   };
 
   if (loading) {

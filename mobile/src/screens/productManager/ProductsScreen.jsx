@@ -102,7 +102,7 @@ const ProductsScreen = ({ navigation }) => {
     }
     const cleanUrl = url.trim();
     if (cleanUrl.startsWith('http')) return cleanUrl;
-    return `http://192.168.8.134:5001${cleanUrl.startsWith('/') ? '' : '/'}${cleanUrl}`;
+    return `https://e-com-mobile-app-production.up.railway.app${cleanUrl.startsWith('/') ? '' : '/'}${cleanUrl}`;
   };
 
   const getStockStatus = (stock) => {
