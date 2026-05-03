@@ -15,7 +15,12 @@ const generateCategoryDescription = async (req, res, next) => {
             return res.status(400).json({ success: false, message: "Name is required" });
         }
 
-        const apiKey = process.env.GROQ_API_KEY;
+        let apiKey = process.env.GROQ_API_KEY;
+        // Sanitize: Trim and remove surrounding quotes if any
+        if (apiKey) {
+            apiKey = apiKey.trim().replace(/^["'](.+)["']$/, '$1');
+        }
+
         if (!apiKey || apiKey === "PASTE_YOUR_GROQ_API_KEY_HERE") {
             console.error("[AI-CAT] GROQ_API_KEY is not configured in .env");
             return res.status(500).json({ success: false, message: "AI Services Unavailable: Key not configured in .env" });
@@ -33,7 +38,7 @@ const generateCategoryDescription = async (req, res, next) => {
                 },
                 { role: "user", content: prompt },
             ],
-            model: "llama-3.1-8b-instant",
+            model: "llama-3.3-70b-versatile", // Currently supported flagship model
             max_tokens: 50,
             temperature: 0.7,
         });
@@ -41,8 +46,9 @@ const generateCategoryDescription = async (req, res, next) => {
         const text = completion.choices[0]?.message?.content?.trim();
         res.status(200).json({ success: true, data: { description: text } });
     } catch (error) {
-        console.error("[AI-CAT] Groq AI Error:", error.message);
-        res.status(500).json({ success: false, message: error.message });
+        console.error("[AI-CAT] Groq AI Error Full:", error);
+        const message = error.response?.data?.error?.message || error.message || "AI Service Error";
+        res.status(500).json({ success: false, message: `Category AI Error: ${message}` });
     }
 };
 
@@ -59,12 +65,18 @@ const generateProductDescription = async (req, res, next) => {
             return res.status(400).json({ success: false, message: "Product name is required" });
         }
 
-        const apiKey = process.env.GROQ_API_KEY;
+        let apiKey = process.env.GROQ_API_KEY;
+        // Sanitize: Trim and remove surrounding quotes if any
+        if (apiKey) {
+            apiKey = apiKey.trim().replace(/^["'](.+)["']$/, '$1');
+        }
+
         if (!apiKey || apiKey === "PASTE_YOUR_GROQ_API_KEY_HERE") {
             console.error("[AI-PROD] GROQ_API_KEY is not configured in .env");
             return res.status(500).json({ success: false, message: "AI Services Unavailable: Key not configured in .env" });
         }
 
+        console.log(`[AI-DIAG] Key starts with: ${apiKey?.substring(0, 7)}`);
         const groq = new Groq({ apiKey });
 
         const prompt = `Write a creative, vibrant, and highly promotional e-commerce product description for "${name}". 
@@ -80,7 +92,7 @@ const generateProductDescription = async (req, res, next) => {
                 },
                 { role: "user", content: prompt },
             ],
-            model: "llama-3.1-8b-instant",
+            model: "llama-3.3-70b-versatile", // Currently supported flagship model
             max_tokens: 150,
             temperature: 0.8,
         });
@@ -88,8 +100,9 @@ const generateProductDescription = async (req, res, next) => {
         const text = completion.choices[0]?.message?.content?.trim();
         res.status(200).json({ success: true, data: { description: text } });
     } catch (error) {
-        console.error("[AI-PROD] Groq AI Error:", error.message);
-        res.status(500).json({ success: false, message: error.message });
+        console.error("[AI-PROD] Groq AI Error Full:", error);
+        const message = error.response?.data?.error?.message || error.message || "AI Service Error";
+        res.status(500).json({ success: false, message: `Product AI Error: ${message}` });
     }
 };
 
@@ -103,7 +116,12 @@ const generateCategoryImage = async (req, res) => {
             return res.status(400).json({ success: false, message: "Category name is required" });
         }
 
-        const token = process.env.REPLICATE_API_TOKEN;
+        let token = process.env.REPLICATE_API_TOKEN;
+        // Sanitize: Trim and remove surrounding quotes if any
+        if (token) {
+            token = token.trim().replace(/^["'](.+)["']$/, '$1');
+        }
+
         if (!token || token === "PASTE_YOUR_REPLICATE_API_TOKEN_HERE") {
             return res.status(500).json({
                 success: false,

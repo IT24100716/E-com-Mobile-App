@@ -158,11 +158,6 @@ const ProductManagerDashboard = ({ navigation }) => {
                   setTimeout(() => navigation.navigate('RestockRequests'), 100);
                 }}
               />
-              <SidebarItem
-                icon="settings"
-                label="Settings"
-                onPress={() => setIsSidebarOpen(false)}
-              />
             </ScrollView>
 
             <TouchableOpacity

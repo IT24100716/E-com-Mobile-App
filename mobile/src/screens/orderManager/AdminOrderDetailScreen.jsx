@@ -79,12 +79,13 @@ const AdminOrderDetailScreen = ({ route, navigation }) => {
   }
 
   const currentStepIndex = STATUS_STEPS.findIndex(s => s.value === order?.status);
-  const sFee = order?.shippingFee || (order?.deliveryMethod === "express_delivery" ? 500 : (order?.deliveryMethod === "pickup" ? 0 : 350));
+  const sFee = order?.shippingFee ?? (order?.deliveryMethod === "express_delivery" ? 500 : (order?.deliveryMethod === "pickup" ? 0 : 350));
   const subtotal = order?.items?.reduce((acc, item) => acc + (item.price * item.quantity), 0) || 0;
-  const discountVal = order?.orderDiscount 
-    ? (order.orderDiscount.couponDiscount + order.orderDiscount.pointsValue)
-    : 0;
-  const settlementTotal = (order?.total || 0) + sFee;
+  
+  const couponDiscount = order?.orderDiscount?.couponDiscount || 0;
+  const pointsDiscount = order?.orderDiscount?.pointsValue || 0;
+  
+  const settlementTotal = Math.max(0, subtotal + sFee - couponDiscount - pointsDiscount);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -257,10 +258,17 @@ const AdminOrderDetailScreen = ({ route, navigation }) => {
             <Text style={styles.summaryValue}>LKR {subtotal.toLocaleString()}</Text>
           </View>
 
-          {discountVal > 0 && (
+          {order?.orderDiscount?.couponDiscount > 0 && (
             <View style={styles.summaryRow}>
-              <Text style={[styles.summaryLabel, { color: '#34C759' }]}>BENEFITS APPLIED</Text>
-              <Text style={[styles.summaryValue, { color: '#34C759' }]}>-LKR {discountVal.toLocaleString()}</Text>
+              <Text style={[styles.summaryLabel, { color: '#34C759' }]}>COUPON DISCOUNT ({order.orderDiscount.couponCode || 'PROMO'})</Text>
+              <Text style={[styles.summaryValue, { color: '#34C759' }]}>-LKR {order.orderDiscount.couponDiscount.toLocaleString()}</Text>
+            </View>
+          )}
+
+          {order?.orderDiscount?.pointsUsed > 0 && (
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, { color: '#FF9500' }]}>LOYALTY REDEEMED ({order.orderDiscount.pointsUsed} PTS)</Text>
+              <Text style={[styles.summaryValue, { color: '#FF9500' }]}>-LKR {order.orderDiscount.pointsValue.toLocaleString()}</Text>
             </View>
           )}
 
@@ -269,7 +277,7 @@ const AdminOrderDetailScreen = ({ route, navigation }) => {
             <Text style={styles.summaryValue}>LKR {sFee.toLocaleString()}</Text>
           </View>
           
-          <View style={[styles.summaryRow, { marginTop: 10 }]}>
+          <View style={[styles.summaryRow, { marginTop: 15, borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 15 }]}>
             <Text style={styles.totalLabel}>SETTLEMENT TOTAL</Text>
             <Text style={styles.totalValue}>LKR {settlementTotal.toLocaleString()}</Text>
           </View>

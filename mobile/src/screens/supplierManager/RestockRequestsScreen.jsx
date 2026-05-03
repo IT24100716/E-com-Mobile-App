@@ -385,11 +385,6 @@ const RestockRequestsScreen = ({ navigation }) => {
                 active
                 onPress={() => setIsSidebarOpen(false)} 
               />
-              <SidebarItem
-                icon="settings"
-                label="Settings"
-                onPress={() => setIsSidebarOpen(false)}
-              />
             </ScrollView>
 
             <TouchableOpacity 

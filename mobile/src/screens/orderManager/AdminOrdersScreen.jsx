@@ -13,7 +13,8 @@ import {
   Image,
   Platform,
   Modal,
-  Pressable
+  Pressable,
+  Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather, MaterialIcons, Ionicons } from '@expo/vector-icons';
@@ -42,7 +43,7 @@ const AdminOrdersScreen = ({ navigation }) => {
 
   const fetchOrders = async () => {
     try {
-      const response = await api.get('/orders');
+      const response = await api.get('/orders?take=1000');
       setOrders(response.data?.data?.orders || response.data?.orders || response.data || []);
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -75,7 +76,7 @@ const AdminOrdersScreen = ({ navigation }) => {
     }
   };
 
-  const filteredOrders = orders.filter(order => {
+  const filteredOrders = (orders || []).filter(order => {
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = 
       order.id.toLowerCase().includes(searchLower) || 
@@ -99,7 +100,7 @@ const AdminOrdersScreen = ({ navigation }) => {
 
   const renderOrderItem = ({ item }) => {
     const sFee = item.shippingFee || (item.deliveryMethod === "express_delivery" ? 500 : (item.deliveryMethod === "pickup" ? 0 : 350));
-    const totalAmount = (item.total || 0) + sFee;
+    const totalAmount = item.total || 0;
 
     return (
       <TouchableOpacity 
@@ -207,11 +208,6 @@ const AdminOrdersScreen = ({ navigation }) => {
                   setIsSidebarOpen(false);
                   setTimeout(() => navigation.navigate('AdminPayments'), 100);
                 }}
-              />
-              <SidebarItem
-                icon="settings"
-                label="Settings"
-                onPress={() => setIsSidebarOpen(false)}
               />
             </ScrollView>
 

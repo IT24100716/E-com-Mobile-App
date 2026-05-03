@@ -31,7 +31,7 @@ const RETURN_STATUS_FILTERS = [
 ];
 
 const AdminReturnsScreen = ({ navigation }) => {
-  const [activeTab, setActiveTab] = useState('requests'); // 'requests' | 'process'
+  const [activeTab, setActiveTab] = useState('requests');
   const [returns, setReturns] = useState([]);
   const [restockRequests, setRestockRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -90,7 +90,7 @@ const AdminReturnsScreen = ({ navigation }) => {
   const fetchRestockRequests = async () => {
     setRestockLoading(true);
     try {
-      const response = await api.get('/restock-requests');
+      const response = await api.get('/restock-requests?take=100');
       const allRequests = response.data?.data || response.data || [];
       // Filter for replacements related to returns (looking for "||META||" in notes)
       const returnRelated = allRequests.filter(r => r.notes?.includes("||META||"));
@@ -233,7 +233,28 @@ const AdminReturnsScreen = ({ navigation }) => {
     }
   };
 
-  const renderReturnItem = ({ item }) => (
+  const getRestockForReturn = (returnId) => {
+    return restockRequests.find(r => r.notes?.includes(`"returnId":"${returnId}"`));
+  };
+
+  const parseFulfillmentMeta = (notes) => {
+    if (!notes || !notes.includes("||FULFILLMENT||")) return null;
+    try {
+      const afterTag = notes.split("||FULFILLMENT||")[1];
+      const jsonBlock = afterTag.split("||")[0];
+      return JSON.parse(jsonBlock);
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const renderReturnItem = ({ item }) => {
+    const existingRestock = getRestockForReturn(item.id);
+    const isCompleted = existingRestock?.status?.toLowerCase() === 'completed' || 
+                        existingRestock?.status?.toLowerCase() === 'closed' ||
+                        existingRestock?.status?.toLowerCase() === 'fulfilled';
+
+    return (
     <View style={styles.returnCard}>
       <View style={styles.cardHeader}>
         <View>
@@ -280,18 +301,47 @@ const AdminReturnsScreen = ({ navigation }) => {
         <Image source={{ uri: item.imageUrl }} style={styles.returnImage} resizeMode="cover" />
       )}
 
+      {isCompleted && (() => {
+        const fulfillment = parseFulfillmentMeta(existingRestock?.notes);
+        if (!fulfillment) return null;
+        return (
+          <View style={styles.fulfillmentInfo}>
+            <View style={styles.fulfillmentDivider} />
+            <Text style={styles.fulfillmentLabel}>SENT REPLACEMENT</Text>
+            <View style={styles.fulfillmentRow}>
+              <Image 
+                source={{ uri: fulfillment.imageUrl?.startsWith('http') ? fulfillment.imageUrl : `http://192.168.8.134:5001${fulfillment.imageUrl}` }} 
+                style={styles.fulfillmentImage} 
+              />
+              <View style={styles.fulfillmentText}>
+                <Text style={styles.fulfillmentName} numberOfLines={1}>{fulfillment.name}</Text>
+                <Text style={styles.fulfillmentSku}>{fulfillment.sku}</Text>
+              </View>
+            </View>
+          </View>
+        );
+      })()}
+
       {item.status === 'approved' && (
         <TouchableOpacity 
-          style={[styles.restockButton, submittingRestock && { opacity: 0.5 }]}
-          onPress={() => handleCreateRestock(item)}
-          disabled={submittingRestock}
+          style={[
+            styles.restockButton, 
+            (submittingRestock || existingRestock) && { opacity: 0.8, backgroundColor: existingRestock ? (isCompleted ? '#34C759' : '#5856D6') : '#000' }
+          ]}
+          onPress={() => !existingRestock && handleCreateRestock(item)}
+          disabled={submittingRestock || (existingRestock && !isCompleted)}
         >
-          <Feather name="package" size={16} color="#fff" />
-          <Text style={styles.restockButtonText}>REQUEST PRODUCT</Text>
+          <Feather name={existingRestock ? (isCompleted ? "check-circle" : "clock") : "package"} size={16} color="#fff" />
+          <Text style={styles.restockButtonText}>
+            {existingRestock 
+              ? (isCompleted ? 'PRODUCT RECEIVED' : 'REPLACEMENT PROCESSING') 
+              : 'REQUEST PRODUCT'}
+          </Text>
         </TouchableOpacity>
       )}
     </View>
   );
+};
 
   const renderProcessItem = ({ item }) => (
     <View style={styles.returnCard}>
@@ -412,26 +462,6 @@ const AdminReturnsScreen = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* Tab Switcher */}
-      <View style={styles.tabContainer}>
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'requests' && styles.activeTab]} 
-          onPress={() => setActiveTab('requests')}
-        >
-          <Text style={[styles.tabText, activeTab === 'requests' && styles.activeTabText]}>REQUESTS</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'process' && styles.activeTab]} 
-          onPress={() => setActiveTab('process')}
-        >
-          <Text style={[styles.tabText, activeTab === 'process' && styles.activeTabText]}>RETURN PROCESS</Text>
-          {restockRequests.filter(r => r.status === 'Pending').length > 0 && (
-            <View style={styles.tabBadge}>
-              <Text style={styles.tabBadgeText}>{restockRequests.filter(r => r.status === 'Pending').length}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
 
       <View style={styles.filterContainer}>
         <View style={styles.searchBar}>
@@ -465,9 +495,9 @@ const AdminReturnsScreen = ({ navigation }) => {
         </View>
       ) : (
         <FlatList
-          data={activeTab === 'requests' ? filteredReturns : restockRequests}
+          data={filteredReturns}
           keyExtractor={(item) => item.id}
-          renderItem={activeTab === 'requests' ? renderReturnItem : renderProcessItem}
+          renderItem={renderReturnItem}
           contentContainerStyle={styles.listContainer}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#000" />}
           onEndReached={loadMore}
@@ -758,6 +788,52 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 16,
     marginTop: 5,
+    marginBottom: 10,
+  },
+  fulfillmentInfo: {
+    marginTop: 15,
+    backgroundColor: '#F0FFF4',
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#C6F6D5',
+  },
+  fulfillmentDivider: {
+    height: 1,
+    backgroundColor: '#C6F6D5',
+    marginBottom: 10,
+  },
+  fulfillmentLabel: {
+    fontSize: 8,
+    fontWeight: '900',
+    color: '#38A169',
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  fulfillmentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  fulfillmentImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+  },
+  fulfillmentText: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  fulfillmentName: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#22543D',
+  },
+  fulfillmentSku: {
+    fontSize: 10,
+    color: '#38A169',
+    fontWeight: '600',
+    marginTop: 1,
   },
   centerContainer: {
     flex: 1,

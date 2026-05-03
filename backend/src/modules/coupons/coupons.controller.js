@@ -13,10 +13,8 @@ class CouponsController {
 
   async getAll(req, res) {
     try {
-      const { skip = 0, take = 10 } = req.query;
-      const coupons = await couponsService.getAll(parseInt(skip), parseInt(take));
-      const total = await couponsService.getTotalCount();
-      return sendSuccess(res, "Coupons fetched", { coupons, total });
+      const coupons = await couponsService.getAll();
+      return sendSuccess(res, "Coupons fetched", { coupons, total: coupons.length });
     } catch (error) {
       return sendError(res, error.message, 400);
     }

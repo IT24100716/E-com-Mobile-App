@@ -7,6 +7,7 @@ import { Feather } from '@expo/vector-icons';
 
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
+import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
 import HomeScreen from '../screens/customer/HomeScreen';
 import ProductManagerDashboard from '../screens/productManager/ProductManagerDashboard';
 import ProductsScreen from '../screens/productManager/ProductsScreen';
@@ -32,11 +33,24 @@ import AdminReviewsScreen from '../screens/reviewManager/AdminReviewsScreen';
 import AdminReturnsScreen from '../screens/reviewManager/AdminReturnsScreen';
 import ReplacementManagerScreen from '../screens/productManager/ReplacementManagerScreen';
 import CreateReturnScreen from '../screens/customer/CreateReturnScreen';
+import CustomerCouponsScreen from '../screens/customer/CustomerCouponsScreen';
+import CategoryProductsScreen from '../screens/customer/CategoryProductsScreen';
+import ProfileScreen from '../screens/customer/ProfileScreen';
+
 
 // Loyalty Manager Screens
 import LoyaltyManagerDashboard from '../screens/loyaltyManager/LoyaltyManagerDashboard';
 import AdminLoyaltyScreen from '../screens/loyaltyManager/AdminLoyaltyScreen';
 import AdminCouponsScreen from '../screens/loyaltyManager/AdminCouponsScreen';
+
+// Staff Manager Screens
+import StaffManagerDashboard from '../screens/staffManager/StaffManagerDashboard';
+import AdminStaffScreen from '../screens/staffManager/AdminStaffScreen';
+import AdminRolesScreen from '../screens/staffManager/AdminRolesScreen';
+
+import AdminUsersScreen from '../screens/staffManager/AdminUsersScreen';
+
+
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -50,13 +64,6 @@ const NotificationsScreen = () => (
   </View>
 );
 
-const SettingsScreen = () => (
-  <View style={{ flex: 1, backgroundColor: '#f8f8f8', justifyContent: 'center', alignItems: 'center' }}>
-    <Feather name="settings" size={48} color="#eee" />
-    <Text style={{ fontSize: 14, fontWeight: '900', color: '#000', letterSpacing: 2, marginTop: 20 }}>SETTINGS</Text>
-    <Text style={{ fontSize: 11, color: '#999', marginTop: 8, fontWeight: '600' }}>Coming soon</Text>
-  </View>
-);
 
 /* ─────────── Nested Stacks ─────────── */
 const HomeStack = createNativeStackNavigator();
@@ -64,6 +71,7 @@ const HomeStackScreen = () => (
   <HomeStack.Navigator screenOptions={{ headerShown: false }}>
     <HomeStack.Screen name="HomeMain" component={HomeScreen} />
     <HomeStack.Screen name="ProductDetails" component={ProductDetailsScreen} />
+    <HomeStack.Screen name="CategoryProducts" component={CategoryProductsScreen} />
   </HomeStack.Navigator>
 );
 
@@ -88,17 +96,19 @@ const ICON_MAP = {
   HomeTab: 'home',
   Orders: 'package',
   Cart: 'shopping-bag',
-  Notifications: 'bell',
-  Settings: 'settings',
+  Coupons: 'tag',
+  Profile: 'user',
 };
+
 
 const LABEL_MAP = {
   HomeTab: 'Home',
   Orders: 'Orders',
   Cart: 'Cart',
-  Notifications: 'Alerts',
-  Settings: 'Settings',
+  Coupons: 'Coupons',
+  Profile: 'Profile',
 };
+
 
 function GlassTabBar({ state, descriptors, navigation }) {
   return (
@@ -152,8 +162,8 @@ const CustomerTabs = () => (
     <Tab.Screen name="HomeTab" component={HomeStackScreen} />
     <Tab.Screen name="Orders" component={OrdersStackScreen} />
     <Tab.Screen name="Cart" component={CartStackScreen} />
-    <Tab.Screen name="Notifications" component={NotificationsScreen} />
-    <Tab.Screen name="Settings" component={SettingsScreen} />
+    <Tab.Screen name="Coupons" component={CustomerCouponsScreen} />
+    <Tab.Screen name="Profile" component={ProfileScreen} />
   </Tab.Navigator>
 );
 
@@ -164,6 +174,7 @@ const AppNavigator = () => {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Register" component={RegisterScreen} />
+        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
         <Stack.Screen name="Home" component={CustomerTabs} />
         <Stack.Screen name="ProductManagerDashboard" component={ProductManagerDashboard} />
         <Stack.Screen name="Products" component={ProductsScreen} />
@@ -195,6 +206,15 @@ const AppNavigator = () => {
         <Stack.Screen name="LoyaltyManagerDashboard" component={LoyaltyManagerDashboard} />
         <Stack.Screen name="AdminLoyalty" component={AdminLoyaltyScreen} />
         <Stack.Screen name="AdminCoupons" component={AdminCouponsScreen} />
+
+        {/* Staff Manager Screens */}
+        <Stack.Screen name="StaffManagerDashboard" component={StaffManagerDashboard} />
+        <Stack.Screen name="AdminStaff" component={AdminStaffScreen} />
+        <Stack.Screen name="AdminRoles" component={AdminRolesScreen} />
+
+        <Stack.Screen name="AdminUsers" component={AdminUsersScreen} />
+
+
       </Stack.Navigator>
     </NavigationContainer>
   );

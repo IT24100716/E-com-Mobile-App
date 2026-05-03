@@ -44,7 +44,7 @@ const AdminPaymentsScreen = ({ navigation }) => {
 
   const fetchPayments = async () => {
     try {
-      const response = await api.get('/payments');
+      const response = await api.get('/payments?take=1000');
       setPayments(response.data?.data?.payments || response.data?.payments || response.data || []);
     } catch (error) {
       console.error('Error fetching payments:', error);
@@ -214,11 +214,6 @@ const AdminPaymentsScreen = ({ navigation }) => {
                 icon="credit-card"
                 label="Payments"
                 active
-                onPress={() => setIsSidebarOpen(false)}
-              />
-              <SidebarItem
-                icon="settings"
-                label="Settings"
                 onPress={() => setIsSidebarOpen(false)}
               />
             </ScrollView>

@@ -11,6 +11,8 @@ datasource db {
 model Role {
   id        String  @id @default(auto()) @map("_id") @db.ObjectId
   name      String
+  description String?
+  permissions Json?   // { "Products": { "read": true, "write": false }, ... }
   users     User[]
   isDeleted Boolean @default(false)
 }
@@ -163,7 +165,7 @@ model Review {
   user      User    @relation(fields: [userId], references: [id])
   product   Product @relation(fields: [productId], references: [id])
   isDeleted Boolean @default(false)
-  createdAt DateTime @default(now())
+  createdAt DateTime? @default(now())
   reply     String?
 }
 
@@ -210,6 +212,7 @@ model LoyaltyTransaction {
   userId    String   @db.ObjectId
   points    Int
   type      String
+  reason    String?
   orderId   String?  @db.ObjectId
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])

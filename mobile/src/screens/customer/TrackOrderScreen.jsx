@@ -428,15 +428,35 @@ const TrackOrderScreen = ({ route, navigation }) => {
 
           <View style={styles.summaryContainer}>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Subtotal</Text>
-              <Text style={styles.summaryValue}>{formatPrice(order.total - (order.shippingFee || 0))}</Text>
+              <Text style={styles.summaryLabel}>ITEMS SUBTOTAL</Text>
+              <Text style={styles.summaryValue}>
+                {formatPrice(order.items?.reduce((acc, i) => acc + (i.price * i.quantity), 0) || 0)}
+              </Text>
             </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Delivery</Text>
-              <Text style={styles.summaryValue}>{formatPrice(order.shippingFee || 0)}</Text>
-            </View>
-            <View style={[styles.summaryRow, { marginTop: 10, borderTopWidth: 1, borderTopColor: '#f5f5f5', paddingTop: 10 }]}>
-              <Text style={styles.grandTotalLabel}>Grand Total</Text>
+
+            {order.shippingFee > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>DELIVERY FEE</Text>
+                <Text style={styles.summaryValue}>{formatPrice(order.shippingFee)}</Text>
+              </View>
+            )}
+
+            {order.orderDiscount?.couponDiscount > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, { color: '#34C759' }]}>COUPON DISCOUNT ({order.orderDiscount.couponCode || 'PROMO'})</Text>
+                <Text style={[styles.summaryValue, { color: '#34C759' }]}>-{formatPrice(order.orderDiscount.couponDiscount)}</Text>
+              </View>
+            )}
+
+            {order.orderDiscount && order.orderDiscount.pointsUsed > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, { color: '#FF9500' }]}>LOYALTY REDEEMED ({order.orderDiscount.pointsUsed} PTS)</Text>
+                <Text style={[styles.summaryValue, { color: '#FF9500' }]}>-{formatPrice(order.orderDiscount.pointsValue)}</Text>
+              </View>
+            )}
+
+            <View style={[styles.summaryRow, { marginTop: 15, borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 15 }]}>
+              <Text style={styles.grandTotalLabel}>GRAND TOTAL</Text>
               <Text style={styles.grandTotalValue}>{formatPrice(order.total)}</Text>
             </View>
           </View>

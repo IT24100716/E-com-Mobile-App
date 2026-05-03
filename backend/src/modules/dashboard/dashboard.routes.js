@@ -8,5 +8,5 @@ router.get("/supplier", authMiddleware, roleMiddleware("admin", "supplier manage
 router.get("/order", authMiddleware, roleMiddleware("admin", "order manager", "staff"), dashboardController.getOrderDashboardData.bind(dashboardController));
 router.get("/review", authMiddleware, roleMiddleware("admin", "review manager", "staff"), dashboardController.getReviewDashboardData.bind(dashboardController));
 router.get("/loyalty", authMiddleware, roleMiddleware("admin", "loyalty manager", "staff"), dashboardController.getLoyaltyDashboardData.bind(dashboardController));
-router.get("/overall", authMiddleware, roleMiddleware("admin"), dashboardController.getAdminOverallData.bind(dashboardController));
+router.get("/overall", authMiddleware, roleMiddleware("admin", "user manager", "staff manager"), dashboardController.getAdminOverallData.bind(dashboardController));
 module.exports = router;

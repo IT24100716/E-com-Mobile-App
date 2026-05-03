@@ -35,8 +35,17 @@ const CheckoutScreen = ({ navigation }) => {
     cvv: '',
     proofImage: null,
   });
-  const [deliveryModalVisible, setDeliveryModalVisible] = useState(false);
+  const [loyaltyBalance, setLoyaltyBalance] = useState(0);
+  const [redeemPoints, setRedeemPoints] = useState('');
+  const [pointsDiscount, setPointsDiscount] = useState(0);
   
+  // Coupon State
+  const [availableCoupons, setAvailableCoupons] = useState([]);
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponInput, setCouponInput] = useState('');
+  const [isCouponModalVisible, setIsCouponModalVisible] = useState(false);
+  const [evaluatingCoupon, setEvaluatingCoupon] = useState(false);
+
   const getShippingFee = (method) => {
     if (method === 'express_delivery') return 500;
     if (method === 'standard_delivery') return 350;
@@ -44,11 +53,78 @@ const CheckoutScreen = ({ navigation }) => {
   };
   
   const shippingFee = getShippingFee(formData.deliveryMethod);
-  const finalTotal = total + shippingFee;
+  const couponDiscount = appliedCoupon?.discountAmount || 0;
+  const finalTotal = total + shippingFee - pointsDiscount - couponDiscount;
 
   useEffect(() => {
     fetchCart();
+    fetchLoyaltyBalance();
+    fetchAvailableCoupons();
   }, []);
+
+  const fetchAvailableCoupons = async () => {
+    try {
+      const response = await api.get('/coupons/available');
+      setAvailableCoupons(response.data?.data?.coupons || response.data?.coupons || []);
+    } catch (error) {
+      console.error('Fetch Coupons Error:', error);
+    }
+  };
+
+  const handleApplyCoupon = async (code) => {
+    const targetCode = code || couponInput;
+    if (!targetCode) return;
+
+    setEvaluatingCoupon(true);
+    try {
+      const orderItems = cartItems.map(item => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        price: item.product.price,
+      }));
+
+      const response = await api.post('/coupons/evaluate', {
+        couponCode: targetCode,
+        items: orderItems,
+        total: total
+      });
+
+      setAppliedCoupon(response.data.data);
+      setCouponInput('');
+      setIsCouponModalVisible(false);
+      Alert.alert('Success', `Coupon "${targetCode}" applied!`);
+    } catch (error) {
+      console.error('Apply Coupon Error:', error);
+      Alert.alert('Coupon Error', error.response?.data?.message || 'Invalid coupon code');
+    } finally {
+      setEvaluatingCoupon(false);
+    }
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+  };
+
+
+  useEffect(() => {
+    const pts = parseInt(redeemPoints);
+    if (!isNaN(pts) && pts > 0 && pts <= loyaltyBalance) {
+      setPointsDiscount(pts);
+    } else {
+      setPointsDiscount(0);
+    }
+  }, [redeemPoints, loyaltyBalance]);
+
+  const fetchLoyaltyBalance = async () => {
+    try {
+      const response = await api.get('/loyalty');
+      // API returns { success: true, data: { balance: 100 } }
+      const balance = response.data?.data?.balance ?? response.data?.balance ?? 0;
+      setLoyaltyBalance(balance);
+    } catch (error) {
+      console.error('Fetch Loyalty Error:', error);
+    }
+  };
 
   const fetchCart = async () => {
     try {
@@ -120,7 +196,20 @@ const CheckoutScreen = ({ navigation }) => {
     return { name: val, hex: '#888' };
   };
 
+
+
   const handleCheckout = async () => {
+    // 1. Auto-apply points if they are in the input but not yet "applied"
+    let finalPointsUsed = pointsDiscount;
+    const inputPts = parseInt(redeemPoints);
+    if (!isNaN(inputPts) && inputPts > 0) {
+      if (inputPts <= loyaltyBalance) {
+        finalPointsUsed = inputPts;
+      } else {
+        return Alert.alert('Insufficient Points', `You only have ${loyaltyBalance} points available.`);
+      }
+    }
+
     // Basic validtion
     if (!formData.address || formData.address.length < 10) {
       return Alert.alert('Validation Error', 'Please enter a valid address (min 10 characters).');
@@ -157,16 +246,20 @@ const CheckoutScreen = ({ navigation }) => {
         contactNumber: formData.phone,
         contactEmail: formData.email,
         deliveryMethod: formData.deliveryMethod,
+        pointsUsed: finalPointsUsed,
+        couponCode: appliedCoupon?.couponCode || ""
       };
 
       const orderRes = await api.post('/orders', orderData);
       const orderId = orderRes.data.data.id;
 
       // 2. Process Payment
+      const settlementAmount = (total + shippingFee - finalPointsUsed - couponDiscount);
+      
       if (formData.paymentMethod === 'bank_deposit') {
         const paymentPayload = new FormData();
         paymentPayload.append('orderId', orderId);
-        paymentPayload.append('amount', finalTotal.toString());
+        paymentPayload.append('amount', settlementAmount.toString());
         paymentPayload.append('method', formData.paymentMethod);
         paymentPayload.append('status', 'pending');
         
@@ -184,7 +277,7 @@ const CheckoutScreen = ({ navigation }) => {
       } else {
         const paymentPayload = {
           orderId: orderId,
-          amount: finalTotal,
+          amount: settlementAmount,
           method: formData.paymentMethod,
           status: formData.paymentMethod === 'card' ? 'paid' : 'pending',
         };
@@ -443,39 +536,88 @@ const CheckoutScreen = ({ navigation }) => {
 
             <View style={styles.loyaltySection}>
               <View style={styles.loyaltyHeader}>
+                <MaterialIcons name="local-offer" size={16} color="#fff" />
+                <Text style={styles.loyaltyTitle}>COUPONS & OFFERS</Text>
+              </View>
+
+              {!appliedCoupon ? (
+                <View style={styles.pointsRow}>
+                  <View style={{ flex: 1 }}>
+                    <View style={[styles.pointsInputWrapper, { width: '100%' }]}>
+                      <View style={[styles.pointsDot, { backgroundColor: '#FFD700' }]} />
+                      <TextInput 
+                        style={styles.pointsValueInput}
+                        placeholder="Enter coupon code"
+                        placeholderTextColor="#444"
+                        value={couponInput}
+                        onChangeText={setCouponInput}
+                        autoCapitalize="characters"
+                      />
+                    </View>
+                  </View>
+                  <TouchableOpacity 
+                    onPress={() => handleApplyCoupon()}
+                    disabled={evaluatingCoupon || !couponInput}
+                    style={{ marginLeft: 10, justifyContent: 'center', height: 40, marginTop: 10 }}
+                  >
+                    {evaluatingCoupon ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={[styles.useMaxText, { color: '#FFD700' }]}>APPLY</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.appliedCouponCard}>
+                  <View style={styles.couponInfo}>
+                    <Feather name="check-circle" size={16} color="#4caf50" />
+                    <Text style={styles.appliedCouponText}>{appliedCoupon.couponCode}</Text>
+                  </View>
+                  <TouchableOpacity onPress={removeCoupon}>
+                    <Feather name="x-circle" size={18} color="#ff4444" />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {availableCoupons.length > 0 && !appliedCoupon && (
+                <TouchableOpacity 
+                  style={styles.showAvailableBtn}
+                  onPress={() => setIsCouponModalVisible(true)}
+                >
+                  <Text style={styles.showAvailableText}>VIEW AVAILABLE OFFERS ({availableCoupons.length})</Text>
+                  <Feather name="chevron-right" size={14} color="#999" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <View style={styles.loyaltySection}>
+              <View style={styles.loyaltyHeader}>
                 <MaterialIcons name="verified-user" size={16} color="#fff" />
                 <Text style={styles.loyaltyTitle}>REWARDS & LOYALTY</Text>
               </View>
 
-              <View style={styles.promoRow}>
-                <TextInput 
-                  style={styles.promoInput} 
-                  placeholder="PROMO CODE" 
-                  placeholderTextColor="#444"
-                />
-                <TouchableOpacity style={styles.applyBtn}>
-                  <Text style={styles.applyBtnText}>APPLY</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.couponGrid}>
-                {['2222', '777', '444', 'WELCOME', 'FDF823'].map(code => (
-                  <View key={code} style={styles.couponChip}>
-                    <Text style={styles.couponText}>USE {code}</Text>
-                  </View>
-                ))}
-              </View>
-
               <View style={styles.pointsRow}>
-                <View>
-                  <Text style={styles.pointsLabel}>BALANCE: 0 PTS</Text>
-                  <View style={styles.pointsInputWrapper}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.pointsLabel}>AVAILABLE BALANCE: {loyaltyBalance} PTS</Text>
+                  <View style={[styles.pointsInputWrapper, { width: '100%' }]}>
                     <View style={styles.pointsDot} />
-                    <Text style={styles.pointsValue}>0</Text>
+                    <TextInput 
+                      style={styles.pointsValueInput}
+                      placeholder="Enter points"
+                      placeholderTextColor="#444"
+                      keyboardType="numeric"
+                      value={redeemPoints}
+                      onChangeText={setRedeemPoints}
+                    />
                   </View>
                 </View>
-                <TouchableOpacity>
-                  <Text style={styles.useMaxText}>Use Max</Text>
+                <TouchableOpacity 
+                  onPress={() => {
+                    setRedeemPoints(loyaltyBalance.toString());
+                  }}
+                  style={{ marginLeft: 15, justifyContent: 'center', height: 40, marginTop: 25 }}
+                >
+                  <Text style={styles.useMaxText}>USE ALL</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -490,6 +632,18 @@ const CheckoutScreen = ({ navigation }) => {
               <Text style={styles.rowLabel}>DELIVERY</Text>
               <Text style={styles.rowValue}>{shippingFee === 0 ? 'FREE' : formatPrice(shippingFee)}</Text>
             </View>
+            {couponDiscount > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={[styles.rowLabel, { color: '#FFD700' }]}>COUPON DISCOUNT ({appliedCoupon?.couponCode})</Text>
+                <Text style={[styles.rowValue, { color: '#FFD700' }]}>- {formatPrice(couponDiscount)}</Text>
+              </View>
+            )}
+            {pointsDiscount > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={[styles.rowLabel, { color: '#4caf50' }]}>LOYALTY DISCOUNT</Text>
+                <Text style={[styles.rowValue, { color: '#4caf50' }]}>- {formatPrice(pointsDiscount)}</Text>
+              </View>
+            )}
 
             <View style={styles.totalContainer}>
               <Text style={styles.totalLarge}>{formatPrice(finalTotal)}</Text>
@@ -503,6 +657,49 @@ const CheckoutScreen = ({ navigation }) => {
             </View>
           </View>
         </View>
+
+        {/* Available Coupons Modal */}
+        <Modal
+          visible={isCouponModalVisible}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setIsCouponModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.couponModalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>AVAILABLE OFFERS</Text>
+                <TouchableOpacity onPress={() => setIsCouponModalVisible(false)}>
+                  <Feather name="x" size={24} color="#000" />
+                </TouchableOpacity>
+              </View>
+              
+              <ScrollView style={styles.couponList}>
+                {availableCoupons.map((coupon) => (
+                  <TouchableOpacity 
+                    key={coupon.id} 
+                    style={styles.couponCard}
+                    onPress={() => handleApplyCoupon(coupon.code)}
+                  >
+                    <View style={styles.couponCardHeader}>
+                      <View style={styles.couponBadge}>
+                        <Text style={styles.couponBadgeText}>{coupon.code}</Text>
+                      </View>
+                      <Text style={styles.discountValue}>
+                        {coupon.discountType === 'percentage' ? `${coupon.discount}% OFF` : `LKR ${coupon.discount} OFF`}
+                      </Text>
+                    </View>
+                    <Text style={styles.couponCondition}>Min. order: LKR {coupon.minCartValue}</Text>
+                    <View style={styles.applyHint}>
+                      <Text style={styles.applyHintText}>Tap to apply</Text>
+                      <Feather name="arrow-right" size={12} color="#999" />
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
 
       </ScrollView>
     </SafeAreaView>
@@ -584,8 +781,10 @@ const styles = StyleSheet.create({
   pointsLabel: { color: '#444', fontSize: 9, fontWeight: '900', marginBottom: 10 },
   pointsInputWrapper: { width: 100, height: 40, backgroundColor: '#111', borderRadius: 10, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, gap: 10 },
   pointsDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff' },
-  pointsValue: { color: '#fff', fontSize: 14, fontWeight: '900' },
-  useMaxText: { color: '#444', fontSize: 10, fontWeight: '900' },
+  pointsValueInput: { flex: 1, color: '#fff', fontSize: 14, fontWeight: '900', padding: 0 },
+  applyPointsBtn: { backgroundColor: '#fff', paddingHorizontal: 12, height: 40, borderRadius: 10, justifyContent: 'center', marginLeft: 10 },
+  applyPointsText: { color: '#000', fontSize: 10, fontWeight: '900' },
+  useMaxText: { color: '#666', fontSize: 10, fontWeight: '900' },
   
   summaryDivider: { height: 1, backgroundColor: '#222', marginVertical: 25 },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
@@ -608,7 +807,82 @@ const styles = StyleSheet.create({
   proofPreview: { width: '100%', height: 120, borderRadius: 12, marginTop: 10 },
   codForm: { alignItems: 'center', padding: 20 },
   codIconCircle: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#f8f9fa', alignItems: 'center', justifyContent: 'center', marginBottom: 15 },
-  codText: { fontSize: 11, fontWeight: '700', color: '#666', textAlign: 'center', letterSpacing: 1, lineHeight: 18 }
+  codText: { fontSize: 11, fontWeight: '700', color: '#666', textAlign: 'center', letterSpacing: 1, lineHeight: 18 },
+
+  // New Coupon Styles
+  appliedCouponCard: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    backgroundColor: '#111', 
+    padding: 15, 
+    borderRadius: 12, 
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#4caf50'
+  },
+  couponInfo: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  appliedCouponText: { color: '#fff', fontSize: 13, fontWeight: '900', letterSpacing: 1 },
+  showAvailableBtn: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    marginTop: 15, 
+    paddingVertical: 10 
+  },
+  showAvailableText: { color: '#999', fontSize: 9, fontWeight: '900', letterSpacing: 0.5 },
+  
+  modalOverlay: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0,0,0,0.7)', 
+    justifyContent: 'flex-end' 
+  },
+  couponModalContent: { 
+    backgroundColor: '#fff', 
+    borderTopLeftRadius: 30, 
+    borderTopRightRadius: 30, 
+    padding: 25, 
+    maxHeight: '70%' 
+  },
+  modalHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 25 
+  },
+  modalTitle: { fontSize: 16, fontWeight: '900', letterSpacing: 1 },
+  couponList: { marginBottom: 20 },
+  couponCard: { 
+    backgroundColor: '#f8f9fa', 
+    borderRadius: 16, 
+    padding: 20, 
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: '#eee'
+  },
+  couponCardHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 10 
+  },
+  couponBadge: { 
+    backgroundColor: '#000', 
+    paddingHorizontal: 12, 
+    paddingVertical: 6, 
+    borderRadius: 8 
+  },
+  couponBadgeText: { color: '#fff', fontSize: 12, fontWeight: '900', letterSpacing: 1 },
+  discountValue: { fontSize: 16, fontWeight: '900', color: '#000' },
+  couponCondition: { fontSize: 11, color: '#666', fontWeight: '600' },
+  applyHint: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'flex-end', 
+    marginTop: 10, 
+    gap: 5 
+  },
+  applyHintText: { fontSize: 10, fontWeight: '800', color: '#999' }
 });
 
 export default CheckoutScreen;

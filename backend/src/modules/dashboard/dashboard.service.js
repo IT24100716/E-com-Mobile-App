@@ -523,9 +523,12 @@ class DashboardService {
         take: 10
       }) || [];
 
+      const customerCount = await prisma.user.count({ where: { role: { name: { contains: 'customer', mode: 'insensitive' } }, isDeleted: false } }) || 0;
+      const rolesCount = await prisma.role.count({ where: { isDeleted: false } }) || 0;
+
       return {
         metrics: {
-          platform: { totalUsers, staffCount, totalSuppliers },
+          platform: { totalUsers, staffCount, customerCount, rolesCount, totalSuppliers },
           sales: { totalOrders, totalRevenue, pendingReturns },
           inventory: { totalProducts, lowStockCount },
           marketing: { activeCoupons, netLoyaltyPoints },

@@ -109,7 +109,8 @@ const AddProductScreen = ({ navigation, route }) => {
       }
     } catch (error) {
       console.error('AI Generation Error:', error);
-      Alert.alert('AI Unavailable', 'Could not generate description. Please ensure GROQ_API_KEY is configured in the backend.');
+      const errMsg = error.response?.data?.message || error.message || 'Could not generate description. Please check your backend logs.';
+      Alert.alert('AI Generation Failed', errMsg);
     } finally {
       setGeneratingDesc(false);
     }

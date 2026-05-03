@@ -40,7 +40,20 @@ class StaffService {
   }
   async getAll(skip = 0, take = 10) { return prisma.user.findMany({ where: { role: { name: { notIn: ["Customer"] } }, isDeleted: false }, include: { role: true }, skip, take }); }
   async getById(id) { return prisma.user.findUnique({ where: { id }, include: { role: true } }); }
-  async update(id, data) { return prisma.user.update({ where: { id }, data, include: { role: true } }); }
+  async update(id, data) {
+    const updateData = {};
+    
+    if (data.name) updateData.name = data.name;
+    if (data.email) updateData.email = data.email;
+    if (data.roleId) updateData.roleId = typeof data.roleId === 'object' ? data.roleId.id : data.roleId;
+    if (data.phone) updateData.phone = data.phone;
+
+    return prisma.user.update({
+      where: { id },
+      data: updateData,
+      include: { role: true }
+    });
+  }
   async delete(id) { return prisma.user.update({ where: { id }, data: { isDeleted: true } }); }
   async getTotalCount() { return prisma.user.count({ where: { role: { name: { notIn: ["Customer"] } }, isDeleted: false } }); }
 }

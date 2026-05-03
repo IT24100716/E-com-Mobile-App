@@ -15,6 +15,8 @@ const createOrderSchema = z.object({
     errorMap: () => ({ message: "deliveryMethod must be standard_delivery, express_delivery, or pickup" }),
   }),
   shippingFee: z.coerce.number().min(0).optional(),
+  couponCode: z.string().optional(),
+  pointsUsed: z.coerce.number().int().min(0).optional(),
 });
 
 const updateOrderSchema = z.object({

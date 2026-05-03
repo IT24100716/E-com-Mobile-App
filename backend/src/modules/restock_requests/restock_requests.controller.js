@@ -41,8 +41,8 @@ class RestockRequestController {
 
   async updateStatus(req, res) {
     try {
-      const { status, fulfillment } = req.body;
-      const request = await restockRequestService.updateStatus(req.params.id, status, fulfillment);
+      const { status, extraNotes } = req.body;
+      const request = await restockRequestService.updateStatus(req.params.id, status, extraNotes);
       return sendSuccess(res, "Restock request status updated", request);
     } catch (error) {
       return sendError(res, error.message, 400);

@@ -3,12 +3,13 @@ const { sendSuccess, sendError } = require("../../utils/response");
 class OrdersController {
   async create(req, res) { 
     try { 
+      console.log("[OrdersController] Incoming order body:", JSON.stringify(req.body, null, 2));
       const { items, total, address, contactNumber, contactEmail, deliveryMethod, shippingFee = 0, couponCode = "", pointsUsed = 0 } = req.body; 
-      console.log("INCOMING ORDER ITEMS CHECK:");
-      console.log(JSON.stringify(items, null, 2));
+      console.log(`[OrdersController] pointsUsed value: ${pointsUsed}, type: ${typeof pointsUsed}`);
       const order = await ordersService.create(req.user.id, items, total, address, contactNumber, contactEmail, deliveryMethod, shippingFee, couponCode, pointsUsed); 
       return sendSuccess(res, "Order created", order, 201); 
     } catch (error) { 
+      console.error("[OrdersController] Create Error:", error);
       return sendError(res, error.message, 400); 
     } 
   }

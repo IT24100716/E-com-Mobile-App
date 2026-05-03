@@ -30,3 +30,6 @@ backend/uploads/*
 # Build outputs
 dist/
 build/
+
+# Prisma
+backend/prisma/generated/

@@ -106,6 +106,7 @@ class OrdersService {
     }
 
     // 3. Calculate final total (Subtotal + Shipping - Discounts)
+    console.log(`[OrdersService] Creating order with pointsUsed: ${pointsUsed}`);
     finalTotal = Math.max(0, total + shippingFee - couponDiscount - pointsValue);
 
     // 4. Create order with finalTotal
@@ -125,7 +126,7 @@ class OrdersService {
       include: { items: { include: { product: true } } }
     });
 
-    // 5. Update Stock Levels and Trigger Notifications
+    // 5. Update Stock Levels
     const notificationsService = require("../notifications/notifications.service");
     const activitiesService = require("../activities/activities.service");
     for (const item of items) {
@@ -137,77 +138,34 @@ class OrdersService {
         if (!product) continue;
 
         if (product.variants && Array.isArray(product.variants) && product.variants.length > 0) {
-          console.log(`\n=== STOCK DEDUCTION DEBUG for "${product.name}" (${product.id}) ===`);
-          console.log(`  Item variantAttributes:`, JSON.stringify(item.variantAttributes));
-          console.log(`  Item quantity: ${item.quantity}`);
-          console.log(`  DB variants:`, JSON.stringify(product.variants.map(v => ({ attrs: v.attributes, stock: v.stock }))));
-          
           let variantMatched = false;
-          const updatedVariants = product.variants.map((v, idx) => {
-            // Robust Matching Logic (handles both id and attribute matching)
+          const updatedVariants = product.variants.map((v) => {
             const vAttrs = v.attributes || v;
             const matchResult = item.variantAttributes?.id 
               ? v.id === item.variantAttributes.id 
               : isVariantMatch(vAttrs, item.variantAttributes);
             
-            console.log(`  Variant[${idx}] id=${v.id} stock=${v.stock} => match=${matchResult}, alreadyMatched=${variantMatched}`);
             if (matchResult && !variantMatched) {
               variantMatched = true;
-              const currentStock = parseInt(v.stock) || 0;
-              const newStock = Math.max(0, currentStock - parseInt(item.quantity));
-              console.log(`  >>> DEDUCTING from Variant[${idx}]: ${currentStock} - ${item.quantity} = ${newStock}`);
-              return { ...v, stock: newStock };
+              return { ...v, stock: Math.max(0, (parseInt(v.stock) || 0) - parseInt(item.quantity)) };
             }
             return v;
           });
-          console.log(`  Variant matched: ${variantMatched}`);
-
           const newTotalStock = updatedVariants.reduce((sum, v) => sum + (v.stock || 0), 0);
-
-          const updatedProduct = await prisma.product.update({
+          await prisma.product.update({
             where: { id: product.id },
-            data: { 
-              variants: updatedVariants,
-              stock: newTotalStock
-            }
+            data: { variants: updatedVariants, stock: newTotalStock }
           });
-
-          if (newTotalStock <= 10) {
-            await notificationsService.checkLowStock(updatedProduct);
-          }
-          await activitiesService.log({
-            type: 'ACTION',
-            action: 'UPDATE_PRODUCT',
-            targetId: product.id,
-            targetName: product.name,
-            message: `Stock automatically updated after purchase. New total: ${newTotalStock}`,
-            details: { newStock: newTotalStock }
-          });
-          
         } else {
-          const newStock = Math.max(0, product.stock - item.quantity);
-          const updatedProduct = await prisma.product.update({
+          await prisma.product.update({
             where: { id: product.id },
-            data: { stock: newStock }
-          });
-
-          if (newStock <= 10) {
-            await notificationsService.checkLowStock(updatedProduct);
-          }
-          await activitiesService.log({
-            type: 'ACTION',
-            action: 'UPDATE_PRODUCT',
-            targetId: product.id,
-            targetName: product.name,
-            message: `Stock automatically updated after purchase. New total: ${newStock}`,
-            details: { newStock: newStock }
+            data: { stock: Math.max(0, product.stock - item.quantity) }
           });
         }
       } catch (stockError) {
         console.error(`Failed to update stock for product ${item.productId}:`, stockError);
       }
     }
-
 
     // 6. Deduct points if pointsUsed > 0
     if (pointsUsed > 0) {
@@ -425,54 +383,81 @@ class OrdersService {
   async getAll(userId, skip = 0, take = 10, isAdmin = false) { const where = isAdmin ? { isDeleted: false } : { userId, isDeleted: false }; return prisma.order.findMany({ where, include: { user: true, items: { include: { product: true } }, payment: true, orderDiscount: true }, skip, take, orderBy: { createdAt: "desc" } }); }
   async getById(id) { return prisma.order.findUnique({ where: { id }, include: { user: true, items: { include: { product: true } }, payment: true, returns: true, orderDiscount: true, reviews: true } }); }
   async updateStatus(id, status) {
-    const existingOrder = await prisma.order.findUnique({
-      where: { id },
-      include: { items: { include: { product: true } }, orderDiscount: true }
-    });
-    if (!existingOrder) throw new Error("Order not found");
+    return await prisma.$transaction(async (tx) => {
+      const existingOrder = await tx.order.findUnique({
+        where: { id },
+        include: { items: { include: { product: true } }, orderDiscount: true }
+      });
+      if (!existingOrder) throw new Error("Order not found");
 
-    if (status === "cancelled" && existingOrder.status !== "cancelled") {
-      await this.#restoreStock(existingOrder.items);
-      
-      // Refund loyalty points if used
-      if (existingOrder.orderDiscount?.pointsUsed > 0) {
-        await loyaltyService.addPoints({
-          userId: existingOrder.userId,
-          points: existingOrder.orderDiscount.pointsUsed,
-          type: "refunded",
-          orderId: existingOrder.id
-        });
+      // Handle Cancellation logic
+      if (status === "cancelled" && existingOrder.status !== "cancelled") {
+        // Restore stock
+        await this.#restoreStock(existingOrder.items, tx);
+        
+        // 1. Refund REDEEMED points (Repush to customer)
+        if (existingOrder.orderDiscount?.pointsUsed > 0) {
+          await tx.loyaltyTransaction.create({
+            data: {
+              userId: existingOrder.userId,
+              points: existingOrder.orderDiscount.pointsUsed,
+              type: "refunded",
+              reason: `Order #${existingOrder.id.slice(-8).toUpperCase()} cancelled`,
+              orderId: existingOrder.id
+            }
+          });
+        }
+
+        // 2. Reverse EARNED points (Deduct if already awarded)
+        const previouslyAwarded = ["confirmed", "shipped", "delivered"].includes(existingOrder.status);
+        if (previouslyAwarded) {
+          const earned = existingOrder.orderDiscount?.earnedPoints || Math.floor(existingOrder.total / 100);
+          if (earned > 0) {
+            await tx.loyaltyTransaction.create({
+              data: {
+                userId: existingOrder.userId,
+                points: -earned,
+                type: "reversed",
+                reason: `Order #${existingOrder.id.slice(-8).toUpperCase()} cancelled (Points reversed)`,
+                orderId: existingOrder.id
+              }
+            });
+          }
+        }
       }
-    }
 
-    const updateData = { status };
-    if (status === "delivered" && existingOrder.status !== "delivered") {
-      updateData.deliveredAt = new Date();
-    }
-
-    const order = await prisma.order.update({
-      where: { id },
-      data: updateData,
-      include: { items: { include: { product: true } }, payment: true, orderDiscount: true }
-    });
-
-    // Award loyalty points when order is confirmed
-    if (status === "confirmed" && existingOrder.status !== "confirmed") {
-      const earnedPoints = order.orderDiscount?.earnedPoints || Math.floor(order.total / 100);
-      if (earnedPoints > 0) {
-        await loyaltyService.addPoints({
-          userId: order.userId,
-          points: earnedPoints,
-          type: "earned",
-          orderId: order.id
-        });
+      const updateData = { status };
+      if (status === "delivered" && existingOrder.status !== "delivered") {
+        updateData.deliveredAt = new Date();
       }
-    }
 
-    // Send status update email (fire-and-forget)
-    this.#sendOrderStatusEmail(order).catch(console.error);
+      const order = await tx.order.update({
+        where: { id },
+        data: updateData,
+        include: { items: { include: { product: true } }, payment: true, orderDiscount: true }
+      });
 
-    return order;
+      // Award loyalty points when order is confirmed
+      if (status === "confirmed" && existingOrder.status !== "confirmed") {
+        const earnedPoints = order.orderDiscount?.earnedPoints || Math.floor(order.total / 100);
+        if (earnedPoints > 0) {
+          await tx.loyaltyTransaction.create({
+            data: {
+              userId: order.userId,
+              points: earnedPoints,
+              type: "earned",
+              reason: `Order #${order.id.slice(-8).toUpperCase()} confirmed`,
+              orderId: order.id
+            }
+          });
+        }
+      }
+
+      // Send status update email (fire-and-forget after transaction)
+      this.#sendOrderStatusEmail(order).catch(console.error);
+
+      return order;
+    });
   }
   async delete(id) { return prisma.order.update({ where: { id }, data: { isDeleted: true } }); }
   async getTotalCount() { return prisma.order.count({ where: { isDeleted: false } }); }
@@ -500,13 +485,13 @@ class OrdersService {
 
     return prisma.order.update({ where: { id }, data: updateData, include: { items: true, payment: true } });
   }
-  async #restoreStock(orderItems) {
+  async #restoreStock(orderItems, tx = prisma) {
     console.log(`[OrderRestoreStock] Starting restoration for ${orderItems.length} items...`);
     for (const item of orderItems) {
       const productId = item.productId || item.product?.id;
       if (!productId) continue;
       
-      const product = await prisma.product.findUnique({ where: { id: productId } });
+      const product = await tx.product.findUnique({ where: { id: productId } });
       if (!product) {
         console.log(`[OrderRestoreStock] ❌ Product ${productId} not found`);
         continue;
@@ -536,13 +521,13 @@ class OrdersService {
 
         newTotalStock = updatedVariants.reduce((sum, v) => sum + (v.stock || 0), 0);
 
-        await prisma.product.update({
+        await tx.product.update({
           where: { id: product.id },
           data: { variants: updatedVariants, stock: newTotalStock }
         });
       } else {
         newTotalStock = (parseInt(product.stock) || 0) + parseInt(item.quantity);
-        await prisma.product.update({
+        await tx.product.update({
           where: { id: product.id },
           data: { stock: newTotalStock }
         });
@@ -553,48 +538,54 @@ class OrdersService {
   }
 
   async cancelByUser(id, userId) {
-    const order = await prisma.order.findUnique({ 
-      where: { id }, 
-      include: { items: { include: { product: true } }, payment: true, orderDiscount: true } 
-    });
-    if (!order) throw new Error("Order not found");
-    if (order.userId !== userId) throw new Error("Unauthorized: Order does not belong to this user");
-    if (order.status !== "pending") throw new Error("Can only cancel pending orders");
-    
-    let paymentUpdate = {};
-    if (order.payment) {
-      if (['card', 'bank_deposit'].includes(order.payment.method)) {
-        paymentUpdate = { update: { status: "refund_pending" } };
-      } else {
-        paymentUpdate = { update: { status: "cancelled" } };
-      }
-    }
-
-    await this.#restoreStock(order.items);
-
-    // Refund loyalty points if used
-    if (order.orderDiscount?.pointsUsed > 0) {
-      await loyaltyService.addPoints({
-        userId: order.userId,
-        points: order.orderDiscount.pointsUsed,
-        type: "refunded",
-        orderId: order.id
+    return await prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({ 
+        where: { id }, 
+        include: { items: { include: { product: true } }, payment: true, orderDiscount: true } 
       });
-    }
+      if (!order) throw new Error("Order not found");
+      if (order.userId !== userId) throw new Error("Unauthorized: Order does not belong to this user");
+      if (order.status !== "pending") throw new Error("Can only cancel pending orders");
+      
+      let paymentUpdate = {};
+      if (order.payment) {
+        if (['card', 'bank_deposit'].includes(order.payment.method)) {
+          paymentUpdate = { update: { status: "refund_pending" } };
+        } else {
+          paymentUpdate = { update: { status: "cancelled" } };
+        }
+      }
 
-    const updatedOrder = await prisma.order.update({ 
-      where: { id }, 
-      data: { 
-        status: "cancelled",
-        ...(Object.keys(paymentUpdate).length > 0 && { payment: paymentUpdate })
-      }, 
-      include: { items: { include: { product: true } }, payment: true, orderDiscount: true } 
+      // Restore stock
+      await this.#restoreStock(order.items, tx);
+
+      // Refund REDEEMED points (Repush to customer)
+      if (order.orderDiscount?.pointsUsed > 0) {
+        await tx.loyaltyTransaction.create({
+          data: {
+            userId: order.userId,
+            points: order.orderDiscount.pointsUsed,
+            type: "refunded",
+            reason: `Order #${order.id.slice(-8).toUpperCase()} cancelled by user`,
+            orderId: order.id
+          }
+        });
+      }
+
+      const updatedOrder = await tx.order.update({ 
+        where: { id }, 
+        data: { 
+          status: "cancelled",
+          ...(Object.keys(paymentUpdate).length > 0 && { payment: paymentUpdate })
+        }, 
+        include: { items: { include: { product: true } }, payment: true, orderDiscount: true } 
+      });
+
+      // Send automated cancellation email (fire-and-forget after transaction)
+      this.#sendOrderStatusEmail(updatedOrder).catch(console.error);
+
+      return updatedOrder;
     });
-
-    // Send automated cancellation email (fire-and-forget)
-    this.#sendOrderStatusEmail(updatedOrder).catch(console.error);
-
-    return updatedOrder;
   }
 
   async processRefund(id) {
@@ -887,9 +878,9 @@ class OrdersService {
 
   #buildOrderEmailHtml(order, { title, subtitle, statusLabel, statusColor, footerMessage }) {
     const subtotal = order.items?.reduce((acc, i) => acc + (i.price * i.quantity), 0) || 0;
-    const shippingFee = order.deliveryMethod === 'express_delivery' ? 500 : 350;
-    const discount = order.orderDiscount ? (order.orderDiscount.couponDiscount || 0) + (order.orderDiscount.pointsValue || 0) : Math.max(0, subtotal - (order.total || 0));
-    const grandTotal = (order.total || 0) + shippingFee;
+    const shippingFee = order.shippingFee !== undefined ? order.shippingFee : (order.deliveryMethod === 'express_delivery' ? 500 : 350);
+    const discount = order.orderDiscount ? (order.orderDiscount.couponDiscount || 0) + (order.orderDiscount.pointsValue || 0) : Math.max(0, subtotal + shippingFee - (order.total || 0));
+    const grandTotal = order.total || 0;
 
     const paymentMethod = order.payment?.method?.replace(/_/g, ' ') || order.method || 'Pending';
     const paymentStatus = order.payment?.status || 'unpaid';

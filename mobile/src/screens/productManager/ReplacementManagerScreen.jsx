@@ -307,11 +307,6 @@ const ReplacementManagerScreen = ({ navigation }) => {
                 label="Restock" 
                 onPress={() => { setIsSidebarOpen(false); navigation.navigate('RestockRequests'); }} 
               />
-              <SidebarItem
-                icon="settings"
-                label="Settings"
-                onPress={() => setIsSidebarOpen(false)}
-              />
             </ScrollView>
 
             <TouchableOpacity

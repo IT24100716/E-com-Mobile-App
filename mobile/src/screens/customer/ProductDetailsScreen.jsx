@@ -19,19 +19,39 @@ import api from '../../api/api';
 const { width } = Dimensions.get('window');
 
 const ProductDetailsScreen = ({ navigation, route }) => {
-  const { product } = route.params;
+  const { product: initialProduct } = route.params;
+  const [product, setProduct] = useState(initialProduct);
   const [selectedSize, setSelectedSize] = useState(null);
   const [selectedColor, setSelectedColor] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [addingToCart, setAddingToCart] = useState(false);
 
-  const getImageUrl = (product) => {
-    const images = product?.images || [];
-    const mainImage = images[0] || product?.imageUrl;
+  useEffect(() => {
+    // Only fetch if ID is valid (24 chars hex)
+    const id = String(initialProduct.id || '');
+    const isValidId = /^[0-9a-fA-F]{24}$/.test(id);
+    if (isValidId) {
+      fetchProductDetails(id);
+    }
+  }, [initialProduct.id]);
+
+  const fetchProductDetails = async (id) => {
+    try {
+      const response = await api.get(`/products/${id}`);
+      const fullProduct = response.data?.data || response.data || initialProduct;
+      setProduct(fullProduct);
+    } catch (error) {
+      console.warn('Refresh failed:', error.message);
+    }
+  };
+
+  const getImageUrl = (p) => {
+    const images = p?.images || [];
+    const mainImage = images[0] || p?.imageUrl;
     if (!mainImage) return 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500&auto=format&fit=crop&q=60';
     if (typeof mainImage === 'string' && mainImage.startsWith('http')) return mainImage;
-    
     const path = typeof mainImage === 'string' ? mainImage : mainImage.url;
+    if (!path) return 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500&auto=format&fit=crop&q=60';
     const cleanPath = path.startsWith('/') ? path : `/${path}`;
     return `http://192.168.8.134:5001${cleanPath}`;
   };
@@ -46,50 +66,74 @@ const ProductDetailsScreen = ({ navigation, route }) => {
     }).format(price || 0);
   };
 
-  const handleBuyNow = async () => {
-    const hasVariants = Array.isArray(product?.variants) && product.variants.length > 0;
-    
-    if (hasVariants && (!selectedSize || !selectedColor)) {
-      Alert.alert('Selection Required', 'Please select a size and color before buying.');
-      return;
-    }
-
-    const token = await AsyncStorage.getItem('userToken');
-    if (!token) {
-      Alert.alert('Login Required', 'Please login to checkout.', [
-        { text: 'Login', onPress: () => navigation.navigate('Login') },
-        { text: 'Cancel', style: 'cancel' }
-      ]);
-      return;
-    }
-
-    setAddingToCart(true);
-    try {
-      // Add to cart first
-      await api.post('/cart', {
-        productId: product.id,
-        quantity: 1,
-        variantAttributes: hasVariants ? {
-          size: selectedSize,
-          colour: selectedColor
-        } : null
+  const getAttr = (v, name) => {
+    if (!v) return null;
+    const attrs = v.attributes || v;
+    if (typeof attrs !== 'object') return null;
+    const search = name.toLowerCase();
+    let key = Object.keys(attrs).find(k => k.toLowerCase() === search);
+    if (key) return attrs[key];
+    if (search === 'color' || search === 'colour') {
+      key = Object.keys(attrs).find(k => {
+        const lk = k.toLowerCase();
+        return lk.includes('color') || lk.includes('colour');
       });
-      
-      // Then navigate to checkout
-      navigation.navigate('Checkout');
-    } catch (error) {
-      console.error('Buy Now Error:', error);
-      Alert.alert('Error', 'Failed to initiate checkout. Please try again.');
-    } finally {
-      setAddingToCart(false);
+      if (key) return attrs[key];
     }
+    if (search === 'sex' || search === 'gender') {
+      key = Object.keys(attrs).find(k => k.toLowerCase() === 'sex' || k.toLowerCase() === 'gender');
+      if (key) return attrs[key];
+    }
+    return null;
   };
 
-  const handleAddToCart = async () => {
-    const hasVariants = Array.isArray(product?.variants) && product.variants.length > 0;
+  const variants = Array.isArray(product?.variants) ? product.variants : [];
+  const hasVariants = variants.length > 0;
 
+  const totalVariantStock = hasVariants 
+    ? variants.reduce((sum, v) => sum + (Number(v.stock) || 0), 0)
+    : Number(product.stock || 0);
+
+  const getSelectedVariant = () => {
+    if (!hasVariants || !selectedSize || !selectedColor) return null;
+    return variants.find(v => {
+      const vSize = String(getAttr(v, 'size') || '').toUpperCase().trim();
+      const vColor = String(getAttr(v, 'color') || '').trim();
+      return vSize === selectedSize && vColor === selectedColor;
+    });
+  };
+
+  const selectedVariant = getSelectedVariant();
+  const availableStock = selectedVariant ? Number(selectedVariant.stock) : totalVariantStock;
+
+  const getProductSex = () => {
+    if (hasVariants) {
+      for (const v of variants) {
+        const sex = getAttr(v, 'sex') || getAttr(v, 'gender');
+        if (sex && typeof sex === 'string' && sex.length > 1) return sex.toUpperCase();
+      }
+    }
+    const textToSearch = (product.name + " " + (product.description || "")).toLowerCase();
+    if (textToSearch.includes('unisex')) return 'UNISEX';
+    if (textToSearch.includes('women') || textToSearch.includes('ladies')) return 'WOMEN';
+    if (textToSearch.includes('men') || textToSearch.includes('gent')) return 'MEN';
+    const catName = product.category?.name?.toLowerCase() || '';
+    if (catName.includes('women')) return 'WOMEN';
+    if (catName.includes('men')) return 'MEN';
+    return 'UNISEX';
+  };
+
+  const productSex = getProductSex();
+
+
+  const handleAddToCart = async () => {
     if (hasVariants && (!selectedSize || !selectedColor)) {
       Alert.alert('Selection Required', 'Please select a size and color before adding to cart.');
+      return;
+    }
+
+    if (quantity > availableStock) {
+      Alert.alert('Stock Exceeded', `Sorry, only ${availableStock} units are available for this selection.`);
       return;
     }
 
@@ -113,9 +157,7 @@ const ProductDetailsScreen = ({ navigation, route }) => {
         } : null
       };
 
-      console.log('[ProductDetails] Adding to cart:', cartData);
       const response = await api.post('/cart', cartData);
-      
       if (response.data) {
         Alert.alert('Success', `${product.name} added to your bag!`, [
           { text: 'View Bag', onPress: () => navigation.navigate('Cart') },
@@ -123,9 +165,8 @@ const ProductDetailsScreen = ({ navigation, route }) => {
         ]);
       }
     } catch (error) {
-      console.error('[ProductDetails] Add to Cart Error:', error.response?.data || error.message);
-      const errorMsg = error.response?.data?.message || 'Failed to add item to cart. Please check your connection.';
-      Alert.alert('Error', errorMsg);
+      console.error('Add to Cart Error:', error.response?.data || error.message);
+      Alert.alert('Error', error.response?.data?.message || 'Failed to add item to cart.');
     } finally {
       setAddingToCart(false);
     }
@@ -134,28 +175,6 @@ const ProductDetailsScreen = ({ navigation, route }) => {
   const renderVariantSelectors = () => {
     const variants = Array.isArray(product.variants) ? product.variants : [];
     
-    // Helper to get attribute value with fuzzy matching
-    const getAttr = (v, name) => {
-      const attrs = v.attributes || v; // Use attributes if exists, else direct
-      const search = name.toLowerCase();
-      
-      // Try exact match first
-      let key = Object.keys(attrs).find(k => k.toLowerCase() === search);
-      if (key) return attrs[key];
-
-      // If looking for color, try common variations
-      if (search === 'color' || search === 'colour') {
-        key = Object.keys(attrs).find(k => {
-          const lk = k.toLowerCase();
-          return lk.includes('color') || lk.includes('colour') || lk.includes('tone') || lk.includes('hue');
-        });
-        if (key) return attrs[key];
-      }
-
-      return null;
-    };
-
-    // Helper to parse color value (handles "Name|Hex" format)
     const parseColor = (val) => {
       if (!val) return { name: 'Unknown', hex: '#eee' };
       if (typeof val !== 'string') return { name: String(val), hex: '#eee' };
@@ -163,14 +182,12 @@ const ProductDetailsScreen = ({ navigation, route }) => {
         const [name, hex] = val.split('|');
         return { name, hex };
       }
-      // Check if it's a valid hex/color string. If not, treat as name
       if (val.startsWith('#') || ['red','blue','green','black','white','yellow','pink','purple'].includes(val.toLowerCase())) {
         return { name: val, hex: val };
       }
-      return { name: val, hex: '#888' }; // Default gray for names without hex
+      return { name: val, hex: '#888' };
     };
 
-    // Extract unique sizes and colors from variants with normalization
     const allSizes = [...new Set(variants.map(v => {
       const val = getAttr(v, 'size');
       return val ? String(val).toUpperCase().trim() : null;
@@ -181,11 +198,9 @@ const ProductDetailsScreen = ({ navigation, route }) => {
       return val ? String(val).trim() : null;
     }))].filter(Boolean);
 
-    // Fallback if no variants exist
-    const displaySizes = allSizes.length > 0 ? allSizes : ['S', 'M', 'L', 'XL'];
-    const displayColors = allColorsRaw.length > 0 ? allColorsRaw : ['#FFFFFF', '#FF0000', '#000000'];
+    const displaySizes = allSizes.length > 0 ? allSizes : [];
+    const displayColors = allColorsRaw.length > 0 ? allColorsRaw : [];
 
-    // Helper to check if a size is available
     const isSizeAvailable = (size) => {
       if (variants.length === 0) return product.stock > 0;
       return variants.some(v => {
@@ -194,7 +209,6 @@ const ProductDetailsScreen = ({ navigation, route }) => {
       });
     };
 
-    // Helper to check if a color is available for the selected size
     const isColorAvailable = (colorRaw) => {
       if (variants.length === 0) return product.stock > 0;
       if (!selectedSize) {
@@ -207,59 +221,69 @@ const ProductDetailsScreen = ({ navigation, route }) => {
       );
     };
 
+    if (displaySizes.length === 0 && displayColors.length === 0) return null;
+
     return (
       <View style={styles.variantsSection}>
-        <Text style={styles.variantLabel}>SIZE: <Text style={styles.selectedLabelText}>{selectedSize || 'None'}</Text></Text>
-        <View style={styles.sizeGrid}>
-          {displaySizes.map((size, index) => {
-            const available = isSizeAvailable(size);
-            return (
-              <TouchableOpacity 
-                key={`size-${size}-${index}`}
-                style={[
-                  styles.sizeChip,
-                  selectedSize === size && styles.activeSizeChip,
-                  !available && styles.disabledChip
-                ]}
-                onPress={() => available && setSelectedSize(size)}
-                disabled={!available}
-              >
-                <Text style={[
-                  styles.sizeText,
-                  selectedSize === size && styles.activeSizeText,
-                  !available && styles.disabledText
-                ]}>{size}</Text>
-                {!available && <View style={styles.diagonalLine} />}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        {displaySizes.length > 0 && (
+          <>
+            <Text style={styles.variantLabel}>SIZE: <Text style={styles.selectedLabelText}>{selectedSize || 'None'}</Text></Text>
+            <View style={styles.sizeGrid}>
+              {displaySizes.map((size, index) => {
+                const available = isSizeAvailable(size);
+                return (
+                  <TouchableOpacity 
+                    key={`size-${size}-${index}`}
+                    style={[
+                      styles.sizeChip,
+                      selectedSize === size && styles.activeSizeChip,
+                      !available && styles.disabledChip
+                    ]}
+                    onPress={() => available && setSelectedSize(size)}
+                    disabled={!available}
+                  >
+                    <Text style={[
+                      styles.sizeText,
+                      selectedSize === size && styles.activeSizeText,
+                      !available && styles.disabledText
+                    ]}>{size}</Text>
+                    {!available && <View style={styles.diagonalLine} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
+        )}
 
-        <Text style={styles.variantLabel}>COLOUR: <Text style={styles.selectedLabelText}>{selectedColor ? parseColor(selectedColor).name : 'None'}</Text></Text>
-        <View style={styles.colorGrid}>
-          {displayColors.map((colorRaw, index) => {
-            const available = isColorAvailable(colorRaw);
-            const { name, hex } = parseColor(colorRaw);
-            return (
-              <TouchableOpacity 
-                key={`color-${colorRaw}-${index}`}
-                style={[
-                  styles.colorCircle,
-                  { backgroundColor: hex },
-                  selectedColor === colorRaw && styles.activeColorCircle,
-                  !available && styles.disabledColorCircle
-                ]}
-                onPress={() => available && setSelectedColor(colorRaw)}
-                disabled={!available}
-              >
-                {selectedColor === colorRaw && (
-                  <Feather name="check" size={16} color={hex.toLowerCase() === '#ffffff' ? '#000' : '#fff'} />
-                )}
-                {!available && <View style={styles.diagonalLine} />}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        {displayColors.length > 0 && (
+          <>
+            <Text style={styles.variantLabel}>COLOUR: <Text style={styles.selectedLabelText}>{selectedColor ? parseColor(selectedColor).name : 'None'}</Text></Text>
+            <View style={styles.colorGrid}>
+              {displayColors.map((colorRaw, index) => {
+                const available = isColorAvailable(colorRaw);
+                const { name, hex } = parseColor(colorRaw);
+                return (
+                  <TouchableOpacity 
+                    key={`color-${colorRaw}-${index}`}
+                    style={[
+                      styles.colorCircle,
+                      { backgroundColor: hex },
+                      selectedColor === colorRaw && styles.activeColorCircle,
+                      !available && styles.disabledColorCircle
+                    ]}
+                    onPress={() => available && setSelectedColor(colorRaw)}
+                    disabled={!available}
+                  >
+                    {selectedColor === colorRaw && (
+                      <Feather name="check" size={16} color={hex.toLowerCase() === '#ffffff' ? '#000' : '#fff'} />
+                    )}
+                    {!available && <View style={styles.diagonalLine} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
+        )}
       </View>
     );
   };
@@ -288,16 +312,16 @@ const ProductDetailsScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           </View>
           <View style={styles.badgeContainer}>
-            <Text style={styles.badgeText}>NEW ARRIVAL</Text>
+            <Text style={styles.badgeText}>PREMIUM COLLECTION</Text>
           </View>
         </View>
 
         <View style={styles.contentContainer}>
           <View style={styles.statusRow}>
-            <View style={[styles.stockBadge, { backgroundColor: product.stock > 0 ? '#e8f5e9' : '#ffebee' }]}>
-              <View style={[styles.stockDot, { backgroundColor: product.stock > 0 ? '#4caf50' : '#f44336' }]} />
-              <Text style={[styles.stockText, { color: product.stock > 0 ? '#2e7d32' : '#c62828' }]}>
-                {product.stock > 0 ? 'IN STOCK' : 'OUT OF STOCK'}
+            <View style={[styles.stockBadge, { backgroundColor: availableStock > 0 ? '#e8f5e9' : '#ffebee' }]}>
+              <View style={[styles.stockDot, { backgroundColor: availableStock > 0 ? '#4caf50' : '#f44336' }]} />
+              <Text style={[styles.stockText, { color: availableStock > 0 ? '#2e7d32' : '#c62828' }]}>
+                {availableStock > 0 ? `${availableStock} IN STOCK` : 'OUT OF STOCK'}
               </Text>
             </View>
             <Text style={styles.skuText}>REF: {product.sku || 'N/A'}</Text>
@@ -318,11 +342,11 @@ const ProductDetailsScreen = ({ navigation, route }) => {
           <View style={styles.attributesRow}>
             <View style={styles.attributeItem}>
               <Text style={styles.attributeLabel}>SEX:</Text>
-              <Text style={styles.attributeValue}>{product.category?.name || 'UNISEX'}</Text>
+              <Text style={styles.attributeValue}>{productSex}</Text>
             </View>
             <View style={styles.attributeItem}>
               <Text style={styles.attributeLabel}>MATERIAL:</Text>
-              <Text style={styles.attributeValue}>SILK</Text>
+              <Text style={styles.attributeValue}>{getAttr(product.variants?.[0] || {}, 'material')?.toUpperCase() || 'COTTON'}</Text>
             </View>
           </View>
 
@@ -342,39 +366,34 @@ const ProductDetailsScreen = ({ navigation, route }) => {
               <Text style={styles.qtyText}>{quantity}</Text>
               <TouchableOpacity 
                 style={styles.qtyButton}
-                onPress={() => setQuantity(quantity + 1)}
+                onPress={() => setQuantity(Math.min(availableStock || 1, quantity + 1))}
+                disabled={availableStock !== null && quantity >= availableStock}
               >
-                <Feather name="plus" size={20} color="#000" />
+                <Feather name="plus" size={20} color={(availableStock !== null && quantity >= availableStock) ? '#CCC' : '#000'} />
               </TouchableOpacity>
             </View>
           </View>
 
           <TouchableOpacity 
-            style={[styles.addToCartButton, (product.stock === 0 || addingToCart) && styles.disabledButton]}
+            style={[
+              styles.addToCartButton, 
+              (availableStock === 0 || quantity > availableStock || addingToCart) && styles.disabledButton
+            ]}
             onPress={handleAddToCart}
-            disabled={product.stock === 0 || addingToCart}
+            disabled={availableStock === 0 || quantity > availableStock || addingToCart}
           >
             {addingToCart ? (
               <ActivityIndicator color="#fff" />
             ) : (
               <>
                 <Feather name="shopping-bag" size={20} color="#fff" />
-                <Text style={styles.addToCartText}>ADD TO CART</Text>
+                <Text style={styles.addToCartText}>
+                  {availableStock === 0 ? 'OUT OF STOCK' : 'ADD TO CART'}
+                </Text>
               </>
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={[styles.checkoutButton, addingToCart && styles.disabledButton]}
-            onPress={handleBuyNow}
-            disabled={addingToCart}
-          >
-            {addingToCart ? (
-              <ActivityIndicator color="#000" />
-            ) : (
-              <Text style={styles.checkoutText}>QUICK CHECKOUT</Text>
-            )}
-          </TouchableOpacity>
 
           <View style={styles.descriptionSection}>
             <Text style={styles.sectionTitle}>DESCRIPTION</Text>
@@ -555,6 +574,7 @@ const styles = StyleSheet.create({
   },
   sizeGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
     marginBottom: 25,
   },
@@ -582,6 +602,7 @@ const styles = StyleSheet.create({
   },
   colorGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 15,
   },
   colorCircle: {
@@ -697,7 +718,8 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     backgroundColor: '#ccc',
-  }
+  },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' }
 });
 
 export default ProductDetailsScreen;

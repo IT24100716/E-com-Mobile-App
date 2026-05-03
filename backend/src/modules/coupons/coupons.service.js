@@ -28,11 +28,10 @@ class CouponsService {
     return coupon;
   }
 
-  async getAll(skip = 0, take = 10) {
+  async getAll() {
     return prisma.coupon.findMany({
       where: { isDeleted: false },
-      skip,
-      take,
+      orderBy: { id: 'desc' },
     });
   }
 
@@ -124,10 +123,6 @@ class CouponsService {
       where: { id },
       data: { isDeleted: true },
     });
-  }
-
-  async getTotalCount() {
-    return prisma.coupon.count({ where: { isDeleted: false } });
   }
 
   async validateCoupon(code) {

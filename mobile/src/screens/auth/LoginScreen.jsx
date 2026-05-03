@@ -1,7 +1,19 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
+  StyleSheet, 
+  Platform, 
+  Alert, 
+  ActivityIndicator, 
+  ScrollView, 
+  KeyboardAvoidingView 
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Feather } from '@expo/vector-icons';
 import api from '../../api/api';
 
 const LoginScreen = ({ navigation }) => {
@@ -33,6 +45,8 @@ const LoginScreen = ({ navigation }) => {
           navigation.replace('ReviewManagerDashboard');
         } else if (userRole === 'loyalty manager') {
           navigation.replace('LoyaltyManagerDashboard');
+        } else if (userRole === 'user manager') {
+          navigation.replace('StaffManagerDashboard');
         } else {
           navigation.replace('Home');
         }
@@ -40,7 +54,7 @@ const LoginScreen = ({ navigation }) => {
         Alert.alert('Error', 'Invalid response from server');
       }
     } catch (error) {
-      const errorMsg = error.response?.data?.message || 'Failed to login. Please check your credentials or IP address.';
+      const errorMsg = error.response?.data?.message || 'Failed to login. Please check your credentials.';
       Alert.alert('Login Error', errorMsg);
     } finally {
       setLoading(false);
@@ -49,44 +63,64 @@ const LoginScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
-        <View style={styles.formContainer}>
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Login to your account</Text>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <View style={styles.formContainer}>
+            <Text style={styles.title}>Welcome Back</Text>
+            <Text style={styles.subtitle}>Login to your premium account</Text>
 
-          <TextInput
-            style={styles.input}
-            placeholder="Email address"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={email}
-            onChangeText={setEmail}
-          />
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>EMAIL ADDRESS</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="name@example.com"
+                placeholderTextColor="#BBB"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={email}
+                onChangeText={setEmail}
+              />
+            </View>
 
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>PASSWORD</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="••••••••"
+                placeholderTextColor="#BBB"
+                secureTextEntry
+                value={password}
+                onChangeText={setPassword}
+              />
+              <TouchableOpacity 
+                style={styles.forgotBtn} 
+                onPress={() => navigation.navigate('ForgotPassword')}
+              >
+                <Text style={styles.forgotText}>Forgot Password?</Text>
+              </TouchableOpacity>
+            </View>
 
-          <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={loading}>
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.loginButtonText}>LOGIN</Text>
-            )}
-          </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.loginButton, loading && styles.disabledBtn]} 
+              onPress={handleLogin} 
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.loginButtonText}>LOGIN</Text>
+              )}
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.registerLink}
-            onPress={() => navigation.navigate('Register')}
-          >
-            <Text style={styles.registerText}>Don't have an account? <Text style={styles.registerTextBold}>Sign Up</Text></Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+            <TouchableOpacity 
+              style={styles.registerLink}
+              onPress={() => navigation.navigate('Register')}
+            >
+              <Text style={styles.registerText}>New here? <Text style={styles.registerTextBold}>Create Account</Text></Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -106,44 +140,79 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 32,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 10,
+    fontWeight: '900',
+    color: '#000',
+    letterSpacing: -1,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 14,
+    color: '#999',
+    marginTop: 8,
     marginBottom: 40,
+    fontWeight: '600',
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#000',
+    letterSpacing: 1.5,
+    marginBottom: 8,
   },
   input: {
-    backgroundColor: '#f5f5f5',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 15,
-    fontSize: 16,
+    backgroundColor: '#F8F9FD',
+    padding: 18,
+    borderRadius: 15,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#000',
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+  },
+  forgotBtn: {
+    alignSelf: 'flex-end',
+    marginTop: 10,
+  },
+  forgotText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#000',
+    letterSpacing: 0.5,
   },
   loginButton: {
     backgroundColor: '#000',
-    padding: 15,
-    borderRadius: 10,
+    padding: 20,
+    borderRadius: 15,
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 5,
+  },
+  disabledBtn: {
+    backgroundColor: '#CCC',
   },
   loginButtonText: {
     color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 2,
   },
   registerLink: {
-    marginTop: 20,
+    marginTop: 30,
     alignItems: 'center',
   },
   registerText: {
-    color: '#666',
-    fontSize: 14,
+    color: '#999',
+    fontSize: 13,
+    fontWeight: '600',
   },
   registerTextBold: {
-    fontWeight: 'bold',
+    fontWeight: '900',
     color: '#000',
   }
 });

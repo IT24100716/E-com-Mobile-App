@@ -11,7 +11,10 @@ import {
   Pressable,
   Dimensions,
   SafeAreaView,
-  Platform
+  Platform,
+  Keyboard,
+  TouchableWithoutFeedback,
+  Alert
 } from 'react-native';
 import { Feather, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import api from '../../api/api';
@@ -60,14 +63,17 @@ const AdminLoyaltyScreen = ({ navigation }) => {
     }
 
     setSubmitting(true);
+    Keyboard.dismiss();
     try {
       const amount = parseInt(pointsAmount) * (type === 'add' ? 1 : -1);
-      await api.post('/loyalty', {
+      const payload = {
         userId: selectedUser.id,
         points: amount,
         type: type === 'add' ? 'admin_reward' : 'admin_deduction',
         reason: reason || (type === 'add' ? 'Admin reward' : 'Admin adjustment')
-      });
+      };
+      console.log("[AdminLoyalty] Sending point update payload:", payload);
+      await api.post('/loyalty', payload);
       
       Alert.alert('Success', `Points ${type === 'add' ? 'added' : 'deducted'} successfully`);
       setIsModalOpen(false);
@@ -82,7 +88,7 @@ const AdminLoyaltyScreen = ({ navigation }) => {
     }
   };
 
-  const filteredUsers = users.filter(u => 
+  const filteredUsers = (users || []).filter(u => 
     u.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     u.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -180,13 +186,6 @@ const AdminLoyaltyScreen = ({ navigation }) => {
                   navigation.navigate('AdminCoupons');
                 }} 
               />
-              <SidebarItem 
-                icon="settings" 
-                label="Loyalty Settings" 
-                onPress={() => {
-                  setIsSidebarOpen(false);
-                }} 
-              />
             </View>
 
             <View style={styles.sidebarFooter}>
@@ -247,67 +246,80 @@ const AdminLoyaltyScreen = ({ navigation }) => {
         animationType="slide"
         onRequestClose={() => setIsModalOpen(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>ADJUST POINTS</Text>
-              <TouchableOpacity onPress={() => setIsModalOpen(false)}>
-                <Feather name="x" size={24} color="#000" />
-              </TouchableOpacity>
-            </View>
-
-            {selectedUser && (
-              <View style={styles.selectedUserInfo}>
-                <View style={styles.smallAvatar}>
-                  <Text style={styles.smallAvatarText}>{selectedUser.name?.charAt(0).toUpperCase()}</Text>
-                </View>
-                <View>
-                  <Text style={styles.selectedName}>{selectedUser.name}</Text>
-                  <Text style={styles.currentPoints}>Current Balance: {selectedUser.balance} pts</Text>
-                </View>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>ADJUST POINTS</Text>
+                <TouchableOpacity onPress={() => {
+                  Keyboard.dismiss();
+                  setIsModalOpen(false);
+                }}>
+                  <Feather name="x" size={24} color="#000" />
+                </TouchableOpacity>
               </View>
-            )}
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>AMOUNT</Text>
-              <TextInput
-                style={styles.pointsInput}
-                placeholder="e.g. 50"
-                keyboardType="numeric"
-                value={pointsAmount}
-                onChangeText={setPointsAmount}
-              />
-            </View>
+              {selectedUser && (
+                <View style={styles.selectedUserInfo}>
+                  <View style={styles.smallAvatar}>
+                    <Text style={styles.smallAvatarText}>{selectedUser.name?.charAt(0).toUpperCase()}</Text>
+                  </View>
+                  <View>
+                    <Text style={styles.selectedName}>{selectedUser.name}</Text>
+                    <Text style={styles.currentPoints}>Current Balance: {selectedUser.balance} pts</Text>
+                  </View>
+                </View>
+              )}
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>REASON (OPTIONAL)</Text>
-              <TextInput
-                style={styles.reasonInput}
-                placeholder="e.g. Loyalty bonus"
-                value={reason}
-                onChangeText={setReason}
-                multiline
-              />
-            </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>AMOUNT</Text>
+                <TextInput
+                  style={styles.pointsInput}
+                  placeholder="e.g. 50"
+                  keyboardType="numeric"
+                  returnKeyType="done"
+                  onSubmitEditing={Keyboard.dismiss}
+                  value={pointsAmount}
+                  onChangeText={setPointsAmount}
+                />
+              </View>
 
-            <View style={styles.modalActions}>
-              <TouchableOpacity 
-                style={[styles.modalBtn, styles.deductBtn]} 
-                onPress={() => handleUpdatePoints('deduct')}
-                disabled={submitting}
-              >
-                {submitting ? <ActivityIndicator color="#FF4757" /> : <Text style={styles.deductBtnText}>DEDUCT</Text>}
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.modalBtn, styles.addBtn]} 
-                onPress={() => handleUpdatePoints('add')}
-                disabled={submitting}
-              >
-                {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.addBtnText}>AWARD POINTS</Text>}
-              </TouchableOpacity>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>REASON (OPTIONAL)</Text>
+                <TextInput
+                  style={styles.reasonInput}
+                  placeholder="e.g. Loyalty bonus"
+                  value={reason}
+                  onChangeText={setReason}
+                  multiline
+                />
+              </View>
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity 
+                  style={[styles.modalBtn, styles.deductBtn]} 
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    handleUpdatePoints('deduct');
+                  }} 
+                  disabled={submitting}
+                >
+                  {submitting ? <ActivityIndicator color="#FF4757" /> : <Text style={styles.deductBtnText}>DEDUCT</Text>}
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.modalBtn, styles.addBtn]} 
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    handleUpdatePoints('add');
+                  }} 
+                  disabled={submitting}
+                >
+                  {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.addBtnText}>AWARD POINTS</Text>}
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
+        </TouchableWithoutFeedback>
       </Modal>
     </SafeAreaView>
   );
@@ -323,8 +335,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingTop: Platform.OS === 'android' ? 45 : 10,
+    paddingBottom: 15,
     backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F2F7',
   },
   menuButton: {
     width: 44,

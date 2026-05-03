@@ -9,7 +9,7 @@ const router = express.Router();
 
 // All activity routes are protected and restricted to admin/product manager roles
 router.use(authMiddleware);
-router.use(roleMiddleware("admin", "product manager", "supplier manager"));
+router.use(roleMiddleware("admin", "product manager", "supplier manager", "user manager"));
 
 // Legacy Universal Endpoints
 router.get("/", activitiesController.getAll);

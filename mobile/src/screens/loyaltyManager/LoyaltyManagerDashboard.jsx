@@ -152,13 +152,6 @@ const LoyaltyManagerDashboard = ({ navigation }) => {
                   navigation.navigate('AdminCoupons');
                 }} 
               />
-              <SidebarItem 
-                icon="settings" 
-                label="Loyalty Settings" 
-                onPress={() => {
-                  setIsSidebarOpen(false);
-                }} 
-              />
             </View>
 
             <View style={styles.sidebarFooter}>
@@ -279,8 +272,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingVertical: 20,
+    paddingTop: Platform.OS === 'android' ? 45 : 10,
+    paddingBottom: 20,
     backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F2F7',
   },
   menuButton: {
     width: 44,

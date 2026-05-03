@@ -156,11 +156,6 @@ const OrderManagerDashboard = ({ navigation }) => {
                   setTimeout(() => navigation.navigate('AdminPayments'), 100);
                 }}
               />
-              <SidebarItem
-                icon="settings"
-                label="Settings"
-                onPress={() => setIsSidebarOpen(false)}
-              />
             </ScrollView>
 
             <TouchableOpacity

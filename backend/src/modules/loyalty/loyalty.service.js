@@ -1,16 +1,29 @@
 const prisma = require("../../config/prisma");
 class LoyaltyService {
   async addPoints(data) { 
-    const tx = await prisma.loyaltyTransaction.create({ data, include: { user: true } }); 
-    // Notify manager
-    const notificationsService = require("../notifications/notifications.service");
-    await notificationsService.create({
-      type: 'LOYALTY',
-      title: 'Points Awarded',
-      message: `${tx.points} points were awarded to ${tx.user.name}.`,
-      link: `/admin/loyalty`
-    }).catch(console.error);
-    return tx;
+    console.log("[LoyaltyService] Adding points with data:", JSON.stringify(data, null, 2));
+    try {
+      const { userId, ...transactionData } = data;
+      const tx = await prisma.loyaltyTransaction.create({ 
+        data: {
+          ...transactionData,
+          user: { connect: { id: userId } }
+        }, 
+        include: { user: true } 
+      }); 
+      // Notify manager
+      const notificationsService = require("../notifications/notifications.service");
+      await notificationsService.create({
+        type: 'LOYALTY',
+        title: 'Points Awarded',
+        message: `${tx.points} points were awarded to ${tx.user.name}.`,
+        link: `/admin/loyalty`
+      }).catch(console.error);
+      return tx;
+    } catch (error) {
+      console.error("[LoyaltyService] Error adding points:", error);
+      throw error;
+    }
   }
   async getBalance(userId) { const sum = await prisma.loyaltyTransaction.aggregate({ where: { userId }, _sum: { points: true } }); return sum._sum.points || 0; }
   async getHistory(userId, skip = 0, take = 10) { return prisma.loyaltyTransaction.findMany({ where: { userId }, skip, take, orderBy: { createdAt: "desc" } }); }
@@ -48,7 +61,9 @@ class LoyaltyService {
   }
   async getMembers() {
     const users = await prisma.user.findMany({
-      where: { role: { name: 'customer' }, isDeleted: false },
+      where: { role: { name: { contains: 'customer', mode: 'insensitive' } }, isDeleted: false },
+      take: 1000,
+      orderBy: { createdAt: 'desc' },
       include: {
         loyaltyTransactions: true
       }
@@ -66,9 +81,11 @@ class LoyaltyService {
         id: user.id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         earned,
         redeemed,
-        balance: earned - redeemed
+        balance: earned - redeemed,
+        createdAt: user.createdAt
       };
     });
   }
