@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "E-COM APP",
+    "name": "RICH APPAREL",
     "slug": "e-com-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -20,10 +20,16 @@
         "foregroundImage": "./assets/app-icon.png",
         "backgroundColor": "#000000"
       },
+      "package": "com.richapparel.ecomapp",
       "edgeToEdgeEnabled": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "9606c68d-44bf-41f7-a35f-b8d3ef9506d6"
+      }
     }
   }
 }
