@@ -301,12 +301,12 @@ const AdminOrderDetailScreen = ({ route, navigation }) => {
               <Text style={styles.paymentSubText}>Electronic Remittance</Text>
             </View>
           </View>
-          {order?.payment?.paymentProof && (
+          {order?.payment?.proofImageUrl && (
              <TouchableOpacity 
                style={styles.proofContainer}
-               onPress={() => Linking.openURL(getImageUrl(order.payment.paymentProof))}
+               onPress={() => Linking.openURL(getImageUrl(order.payment.proofImageUrl))}
              >
-               <Image source={{ uri: getImageUrl(order.payment.paymentProof) }} style={styles.proofPreview} />
+               <Image source={{ uri: getImageUrl(order.payment.proofImageUrl) }} style={styles.proofPreview} />
                <View style={styles.proofOverlay}>
                  <Feather name="eye" size={20} color="#fff" />
                  <Text style={styles.proofText}>VIEW PROOF</Text>

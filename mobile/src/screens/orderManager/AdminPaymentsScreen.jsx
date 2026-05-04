@@ -140,12 +140,12 @@ const AdminPaymentsScreen = ({ navigation }) => {
         </View>
       </View>
 
-      {item.paymentProof && (
+      {item.proofImageUrl && (
         <TouchableOpacity 
           style={styles.proofPreviewContainer}
-          onPress={() => Linking.openURL(getImageUrl(item.paymentProof))}
+          onPress={() => Linking.openURL(getImageUrl(item.proofImageUrl))}
         >
-          <Image source={{ uri: getImageUrl(item.paymentProof) }} style={styles.proofImage} />
+          <Image source={{ uri: getImageUrl(item.proofImageUrl) }} style={styles.proofImage} />
           <View style={styles.proofBadge}>
             <Feather name="image" size={12} color="#fff" />
             <Text style={styles.proofBadgeText}>VIEW PROOF</Text>
