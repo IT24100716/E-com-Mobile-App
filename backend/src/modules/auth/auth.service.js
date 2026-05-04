@@ -100,13 +100,18 @@ class AuthService {
       }
     });
 
-    // Send email with OTP
-    await sendEmail(
+    // Send email with OTP (Background task to avoid API timeout)
+    console.log(`[AuthService] Attempting to send OTP email to ${email}`);
+    sendEmail(
       email,
       "Password Reset OTP",
       `Your OTP for password reset is: ${otp}. This OTP will expire in 15 minutes.`,
       `<p>Your OTP for password reset is: <strong>${otp}</strong></p><p>This OTP will expire in 15 minutes.</p>`
-    );
+    ).then(() => {
+      console.log(`[AuthService] ✅ OTP email sent to ${email}`);
+    }).catch(err => {
+      console.error(`[AuthService] ❌ Failed to send OTP email to ${email}:`, err.message);
+    });
 
     return { message: "OTP sent to your email" };
   }
