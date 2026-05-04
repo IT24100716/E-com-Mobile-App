@@ -58,9 +58,26 @@ const CheckoutScreen = ({ navigation }) => {
 
   useEffect(() => {
     fetchCart();
+    fetchUserProfile();
     fetchLoyaltyBalance();
     fetchAvailableCoupons();
   }, []);
+
+  const fetchUserProfile = async () => {
+    try {
+      const response = await api.get('/auth/profile');
+      const user = response.data?.data?.user || response.data?.user;
+      if (user) {
+        setFormData(prev => ({
+          ...prev,
+          email: user.email || prev.email,
+          phone: user.phone || prev.phone,
+        }));
+      }
+    } catch (error) {
+      console.error('Fetch Profile Error:', error);
+    }
+  };
 
   const fetchAvailableCoupons = async () => {
     try {
