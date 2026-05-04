@@ -1,18 +1,14 @@
 const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false, // use TLS
+  service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD,
+    pass: process.env.EMAIL_PASSWORD?.replace(/\s+/g, ''), // Remove spaces for better compatibility
   },
   tls: {
     rejectUnauthorized: false,
-  },
-  debug: true,
-  logger: true
+  }
 });
 
 // Verify connection on startup
@@ -20,7 +16,8 @@ transporter.verify((err, success) => {
   if (err) {
     console.error("❌ Mail transport verification failed:", err.message);
   } else {
-    console.log("✅ Mail transport is ready to send emails");
+    const passLen = process.env.EMAIL_PASSWORD ? process.env.EMAIL_PASSWORD.replace(/\s+/g, '').length : 0;
+    console.log(`✅ Mail transport is ready (User: ${process.env.EMAIL_USER}, Pass Length: ${passLen})`);
   }
 });
 
