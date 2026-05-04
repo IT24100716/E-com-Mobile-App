@@ -41,9 +41,9 @@ const HomeScreen = ({ navigation }) => {
   };
 
   const categories = [
-    { id: '1', title: "WOMEN'S", sub: "COLLECTION", image: require('../../assets/img/split image 2.png') },
-    { id: '2', title: "MEN'S", sub: "WEAR", image: require('../../assets/img/split image .png') },
-    { id: '3', title: "SPORTY", sub: "WEAR", image: require('../../assets/img/split image 3.png') },
+    { id: '1', title: "WOMEN'S", sub: "COLLECTION", image: require('../../assets/img/split_image_2.png') },
+    { id: '2', title: "MEN'S", sub: "WEAR", image: require('../../assets/img/split_image_1.png') },
+    { id: '3', title: "SPORTY", sub: "WEAR", image: require('../../assets/img/split_image_3.png') },
   ];
 
   return (
@@ -63,7 +63,7 @@ const HomeScreen = ({ navigation }) => {
 
         {/* 1. Hero Section */}
         <ImageBackground
-          source={require('../../assets/img/main hero bg.png')}
+          source={require('../../assets/img/main_hero_bg.png')}
           style={styles.heroBanner}
         >
           <View style={styles.heroOverlay}>

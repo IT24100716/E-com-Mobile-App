@@ -35,7 +35,7 @@ const HomeScreen = ({ navigation }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   const searchAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const sidebarAnim = useRef(new Animated.Value(-width)).current;
@@ -85,10 +85,10 @@ const HomeScreen = ({ navigation }) => {
       const response = await api.get('/products?take=100');
       const responseData = response.data?.data?.products || response.data?.products || response.data?.data || response.data || [];
       const productsList = Array.isArray(responseData) ? responseData : [];
-      
+
       setAllProducts(productsList);
       setNewArrivals(productsList.slice(0, 8));
-      
+
       setMensCollection(productsList.filter(p => {
         const sex = getProductSex(p);
         return sex === 'men' || sex === 'unisex';
@@ -150,9 +150,9 @@ const HomeScreen = ({ navigation }) => {
   };
 
   const categories = [
-    { id: '1', title: "WOMEN", sub: "COLLECTION", type: 'Women', image: require('../../../assets/img/split image 2.png'), icon: 'shoe-heel' },
-    { id: '2', title: "MEN", sub: "WEAR", type: 'Men', image: require('../../../assets/img/split image .png'), icon: 'tie' },
-    { id: '3', title: "SPORT", sub: "SERIES", type: 'Sporty', image: require('../../../assets/img/split image 3.png'), icon: 'run-fast' },
+    { id: '1', title: "WOMEN", sub: "COLLECTION", type: 'Women', image: require('../../../assets/img/split_image_2.png'), icon: 'shoe-heel' },
+    { id: '2', title: "MEN", sub: "WEAR", type: 'Men', image: require('../../../assets/img/split_image_1.png'), icon: 'tie' },
+    { id: '3', title: "SPORT", sub: "SERIES", type: 'Sporty', image: require('../../../assets/img/split_image_3.png'), icon: 'run-fast' },
   ];
 
   const brandLogos = [
@@ -169,7 +169,7 @@ const HomeScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      
+
       <View style={[styles.header, { paddingTop: insets.top, height: 60 + insets.top }]}>
         {!isSearchOpen && (
           <View style={styles.headerLeft}>
@@ -185,7 +185,7 @@ const HomeScreen = ({ navigation }) => {
 
       <ScrollView showsVerticalScrollIndicator={false}>
         <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={styles.heroCarousel}>
-          <ImageBackground source={require('../../../assets/img/main hero bg.png')} style={styles.heroSlide}>
+          <ImageBackground source={require('../../../assets/img/main_hero_bg.png')} style={styles.heroSlide}>
             <View style={styles.heroOverlay}>
               <Text style={styles.heroTag}>PREMIUM 2026</Text>
               <Text style={styles.heroTitle}>NOT JUST FASHION</Text>
