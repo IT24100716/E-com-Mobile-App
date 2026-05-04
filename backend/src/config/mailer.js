@@ -1,42 +1,28 @@
-const nodemailer = require("nodemailer");
+const { Resend } = require('resend');
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD?.replace(/\s+/g, ''), // Remove spaces for better compatibility
-  },
-  tls: {
-    rejectUnauthorized: false,
-  }
-});
+const resend = new Resend(process.env.RESEND_API_KEY || 're_bSTD1uEr_2k3sWgRRTvBa4YuFKtUHD7pQ');
 
-// Verify connection on startup
-transporter.verify((err, success) => {
-  if (err) {
-    console.error("❌ Mail transport verification failed:", err.message);
-  } else {
-    const passLen = process.env.EMAIL_PASSWORD ? process.env.EMAIL_PASSWORD.replace(/\s+/g, '').length : 0;
-    console.log(`✅ Mail transport is ready (User: ${process.env.EMAIL_USER}, Pass Length: ${passLen})`);
-  }
-});
+console.log("✅ Mail transport (Resend) is initialized");
 
 const sendEmail = async (to, subject, text, html) => {
   try {
-    console.log(`[Mailer] Attempting to send email to: ${to}`);
-    console.log(`[Mailer] From: ${process.env.EMAIL_USER}`);
+    console.log(`[Mailer] Attempting to send email to: ${to} via Resend`);
 
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
+    const { data, error } = await resend.emails.send({
+      from: 'E-com App <onboarding@resend.dev>', 
       to,
       subject,
       text,
-      html
-    };
+      html,
+    });
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log("Email sent:", info.response);
-    return info;
+    if (error) {
+       console.error("❌ Error sending email via Resend:", error);
+       throw new Error(error.message);
+    }
+
+    console.log("✅ Email sent successfully via Resend. ID: " + data.id);
+    return data;
   } catch (error) {
     console.error("Error sending email:", error);
     throw error;
