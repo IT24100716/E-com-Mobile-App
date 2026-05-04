@@ -239,14 +239,14 @@ const HomeScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.promoBanner}>
-          <ImageBackground source={require('../../../assets/img/loyalty_promo.png')} style={styles.promoImg} imageStyle={{ borderRadius: 30 }}>
+          <View style={[styles.promoImg, { backgroundColor: '#000', borderRadius: 30 }]}>
             <View style={styles.promoOverlay}>
               <Text style={styles.promoTag}>SHOP NOW</Text>
               <Text style={styles.promoTitle}>GET YOUR OWN STYLE</Text>
               <Text style={styles.promoSub}>Reedem your Points now</Text>
               <TouchableOpacity style={styles.promoBtn}><Text style={styles.promoBtnText}>GET THE DEALS</Text></TouchableOpacity>
             </View>
-          </ImageBackground>
+          </View>
         </View>
 
         <View style={styles.section}>
