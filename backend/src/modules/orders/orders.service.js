@@ -904,13 +904,13 @@ class OrdersService {
   }
 
   #buildOrderEmailHtml(order, { title, subtitle, statusLabel, statusColor, footerMessage }) {
-    const subtotal = order.items?.reduce((acc, i) => acc + (i.price * i.quantity), 0) || 0;
-    const shippingFee = order.shippingFee !== undefined ? order.shippingFee : (order.deliveryMethod === 'express_delivery' ? 500 : 350);
+    const subtotal = (order.items || []).reduce((acc, i) => acc + ((i.price || 0) * (i.quantity || 0)), 0) || 0;
+    const shippingFee = order.shippingFee !== undefined ? order.shippingFee : (order.deliveryMethod === 'express_delivery' ? 500 : (order.deliveryMethod === 'pickup' ? 0 : 350));
     const discount = order.orderDiscount ? (order.orderDiscount.couponDiscount || 0) + (order.orderDiscount.pointsValue || 0) : Math.max(0, subtotal + shippingFee - (order.total || 0));
     const grandTotal = order.total || 0;
 
     const paymentMethod = order.payment?.method?.replace(/_/g, ' ') || order.method || 'Pending';
-    const paymentStatus = order.payment?.status || 'unpaid';
+    const paymentStatus = order.payment?.status || 'Pending';
 
     const itemsHtml = (order.items || []).map(item => {
       const imgUrl = this.#getImageUrl(item.product);
@@ -930,8 +930,8 @@ class OrdersService {
             </tr></table>
           </td>
           <td style="padding:12px 8px;border-bottom:1px solid #f0f0f0;text-align:center;font-weight:600;color:#333;font-size:13px;">${item.quantity}</td>
-          <td style="padding:12px 8px;border-bottom:1px solid #f0f0f0;text-align:right;color:#666;font-size:13px;">LKR ${item.price.toFixed(2)}</td>
-          <td style="padding:12px 8px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700;color:#111;font-size:13px;">LKR ${(item.price * item.quantity).toFixed(2)}</td>
+          <td style="padding:12px 8px;border-bottom:1px solid #f0f0f0;text-align:right;color:#666;font-size:13px;">LKR ${(item.price || 0).toFixed(2)}</td>
+          <td style="padding:12px 8px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700;color:#111;font-size:13px;">LKR ${((item.price || 0) * (item.quantity || 0)).toFixed(2)}</td>
         </tr>`;
     }).join('');
 
@@ -957,7 +957,7 @@ class OrdersService {
           <table cellpadding="0" cellspacing="0" border="0" width="100%">
             <tr>
               <td style="padding:4px 0;"><span style="font-size:10px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:1px;">Order ID</span></td>
-              <td style="padding:4px 0;text-align:right;"><span style="font-size:13px;font-weight:800;color:#111;">#${order.id.slice(-8).toUpperCase()}</span></td>
+              <td style="padding:4px 0;text-align:right;"><span style="font-size:13px;font-weight:800;color:#111;">#${String(order.id).slice(-8).toUpperCase()}</span></td>
             </tr>
             <tr>
               <td style="padding:4px 0;"><span style="font-size:10px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:1px;">Order Date</span></td>
@@ -1119,15 +1119,22 @@ class OrdersService {
       refunded: 'Payment Refunded'
     };
 
-    const typeKey = customType || order.status;
+    const orderIdStr = String(order.id);
     const subjectPrefix = subjectMap[typeKey] || 'Order Update';
 
-    await sendEmail(
-      order.contactEmail,
-      `${isReplacement ? 'REPLACEMENT: ' : ''}${subjectPrefix} — #${order.id.slice(-8).toUpperCase()}`,
-      `Your ${isReplacement ? 'replacement ' : ''}order #${order.id.slice(-8).toUpperCase()} status: ${order.status}. ${config.subtitle}`,
-      html
-    );
+    console.log(`[OrdersService] Attempting to send ${typeKey} email to ${order.contactEmail} for order #${orderIdStr.slice(-8)}`);
+
+    try {
+      await sendEmail(
+        order.contactEmail,
+        `${isReplacement ? 'REPLACEMENT: ' : ''}${subjectPrefix} — #${orderIdStr.slice(-8).toUpperCase()}`,
+        `Your ${isReplacement ? 'replacement ' : ''}order #${orderIdStr.slice(-8).toUpperCase()} status: ${order.status}. ${config.subtitle}`,
+        html
+      );
+      console.log(`[OrdersService] ✅ ${typeKey} email sent successfully to ${order.contactEmail}`);
+    } catch (emailError) {
+      console.error(`[OrdersService] ❌ Failed to send ${typeKey} email to ${order.contactEmail}:`, emailError.message);
+    }
   }
 }
 module.exports = new OrdersService();
