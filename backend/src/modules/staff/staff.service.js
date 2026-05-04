@@ -9,32 +9,43 @@ class StaffService {
 
   async create(data, roleId) {
     const password = data.password || this.generatePassword();
-    let user;
+    console.log(`[StaffService] Creating staff member: ${data.email} with role ${roleId}`);
 
     try {
-      // Create user in database
-      user = await prisma.user.create({
-        data: { ...data, roleId, password: await bcrypt.hash(password, 10) },
+      // 1. Create the user
+      // We strip roleId from data to avoid potential duplicates if it's already there
+      const { roleId: _, ...userData } = data;
+      
+      const user = await prisma.user.create({
+        data: { 
+          ...userData, 
+          roleId, 
+          password: await bcrypt.hash(password, 10) 
+        },
         include: { role: true }
       });
 
-      try {
-        // Send email with password
-        await sendEmail(
-          user.email,
-          "Welcome to Admin Panel - Your Login Credentials",
-          `Hello ${user.name},\n\nYour account has been created successfully.\n\nEmail: ${user.email}\nPassword: ${password}\n\nPlease log in and change your password immediately.\n\nLogin URL: ${process.env.FRONTEND_URL}/login`,
-          `<h2>Welcome to Admin Panel</h2><p>Hello ${user.name},</p><p>Your account has been created successfully.</p><p><strong>Email:</strong> ${user.email}</p><p><strong>Password:</strong> ${password}</p><p>Please <a href="${process.env.FRONTEND_URL}/login">log in</a> and change your password immediately.</p>`
-        );
-        return user;
-      } catch (emailError) {
-        // Email sending failed - rollback user creation
-        console.error("Email sending failed. Rolling back staff creation:", emailError);
-        await prisma.user.delete({ where: { id: user.id } });
-        throw new Error(`Failed to send welcome email. Staff creation rolled back. Error: ${emailError.message}`);
-      }
+      console.log(`[StaffService] ✅ User created successfully: ${user.id}`);
+
+      // 2. Trigger welcome email in the background
+      const loginUrl = `${process.env.FRONTEND_URL || 'https://rich-apparel.vercel.app'}/login`;
+      
+      console.log(`[StaffService] Attempting to send welcome email to ${user.email}`);
+      
+      sendEmail(
+        user.email,
+        "Welcome to Admin Panel - Your Login Credentials",
+        `Hello ${user.name},\n\nYour account has been created successfully.\n\nEmail: ${user.email}\nPassword: ${password}\n\nPlease log in and change your password immediately.\n\nLogin URL: ${loginUrl}`,
+        `<h2>Welcome to Admin Panel</h2><p>Hello ${user.name},</p><p>Your account has been created successfully.</p><p><strong>Email:</strong> ${user.email}</p><p><strong>Password:</strong> ${password}</p><p>Please <a href="${loginUrl}">log in</a> and change your password immediately.</p>`
+      ).then(() => {
+        console.log(`[StaffService] ✅ Welcome email sent to ${user.email}`);
+      }).catch(emailError => {
+        console.error(`[StaffService] ❌ Failed to send welcome email to ${user.email}:`, emailError.message);
+      });
+
+      return user;
     } catch (error) {
-      // Re-throw the error with context
+      console.error("[StaffService] ❌ Staff creation failed:", error.message);
       throw error;
     }
   }
