@@ -204,13 +204,18 @@ class OrdersService {
       }
     });
     
-    this.#sendOrderStatusEmail(fullOrder).catch(console.error);
+    if (fullOrder) {
+      console.log(`[OrdersService] Triggering initial order confirmation email for #${String(fullOrder.id).slice(-8)}`);
+      this.#sendOrderStatusEmail(fullOrder).catch(err => 
+        console.error(`[OrdersService] ❌ Initial order email failed:`, err)
+      );
+    }
     
     // 10. Push Notification for Admin/Order Managers
     await notificationsService.create({
       type: 'NEW_ORDER',
       title: 'New Order Placed',
-      message: `Order #${fullOrder.id.slice(-8).toUpperCase()} has been placed by ${fullOrder.user?.name || 'Guest'}.`,
+      message: `Order #${String(fullOrder.id).slice(-8).toUpperCase()} has been placed by ${fullOrder.user?.name || 'Guest'}.`,
       link: `/admin/orders?viewId=${fullOrder.id}`
     });
     
@@ -384,7 +389,8 @@ class OrdersService {
   async getById(id) { return prisma.order.findUnique({ where: { id }, include: { user: true, items: { include: { product: true } }, payment: true, returns: true, orderDiscount: true, reviews: true } }); }
   async updateStatus(id, status) {
     console.log(`[OrdersService] Starting status update for ${id} to "${status}"`);
-    return await prisma.$transaction(async (tx) => {
+    let updatedOrder;
+    await prisma.$transaction(async (tx) => {
       const existingOrder = await tx.order.findUnique({
         where: { id },
         include: { items: { include: { product: true } }, orderDiscount: true }
@@ -439,7 +445,7 @@ class OrdersService {
         updateData.deliveredAt = new Date();
       }
 
-      const order = await tx.order.update({
+      updatedOrder = await tx.order.update({
         where: { id },
         data: updateData,
         include: { items: { include: { product: true } }, payment: true, orderDiscount: true }
@@ -452,13 +458,13 @@ class OrdersService {
       if (reachingAwardedStatus && wasNotAwarded) {
         try {
           console.log(`[OrdersService] Awarding points for order ${id} (status: ${status})`);
-          const baseTotal = order.total || 0;
-          const calculatedPoints = order.orderDiscount?.earnedPoints || (baseTotal / 100);
+          const baseTotal = updatedOrder.total || 0;
+          const calculatedPoints = updatedOrder.orderDiscount?.earnedPoints || (baseTotal / 100);
           const earnedPoints = Math.floor(Number(calculatedPoints) || 0);
           
           if (earnedPoints > 0) {
-            const orderIdStr = String(order.id);
-            const userIdStr = String(order.userId);
+            const orderIdStr = String(updatedOrder.id);
+            const userIdStr = String(updatedOrder.userId);
             console.log(`[OrdersService] Creating loyalty tx: User=${userIdStr}, Points=${earnedPoints}`);
             await tx.loyaltyTransaction.create({
               data: {
@@ -473,18 +479,21 @@ class OrdersService {
           }
         } catch (loyaltyError) {
           console.error(`[OrdersService] ❌ Loyalty awarding failed for order ${id}:`, loyaltyError);
-          // We might choose to ignore loyalty errors to allow status update, 
-          // but if it's a critical system error, we should know.
           throw new Error(`Loyalty Processing Error: ${loyaltyError.message}`);
         }
       }
-
-      // 3. Send status update email (fire-and-forget after transaction)
-      console.log(`[OrdersService] Sending status email for ${id}`);
-      this.#sendOrderStatusEmail(order).catch(err => console.error("[OrdersService] Email failed:", err));
-
-      return order;
     });
+
+    // 3. Send status update email AFTER transaction is successful
+    if (updatedOrder) {
+      console.log(`[OrdersService] Triggering status email for ${id}`);
+      // Using background promise but with error logging
+      this.#sendOrderStatusEmail(updatedOrder).catch(err => 
+        console.error(`[OrdersService] ❌ Email background task failed for ${id}:`, err)
+      );
+    }
+
+    return updatedOrder;
   }
   async delete(id) { return prisma.order.update({ where: { id }, data: { isDeleted: true } }); }
   async getTotalCount() { return prisma.order.count({ where: { isDeleted: false } }); }
@@ -1119,6 +1128,7 @@ class OrdersService {
       refunded: 'Payment Refunded'
     };
 
+    const typeKey = customType || order.status;
     const orderIdStr = String(order.id);
     const subjectPrefix = subjectMap[typeKey] || 'Order Update';
 
@@ -1133,7 +1143,11 @@ class OrdersService {
       );
       console.log(`[OrdersService] ✅ ${typeKey} email sent successfully to ${order.contactEmail}`);
     } catch (emailError) {
-      console.error(`[OrdersService] ❌ Failed to send ${typeKey} email to ${order.contactEmail}:`, emailError.message);
+      console.error(`[OrdersService] ❌ Failed to send ${typeKey} email to ${order.contactEmail} for order #${orderIdStr.slice(-8)}`);
+      console.error(`[OrdersService] Error Details: ${emailError.message}`);
+      if (emailError.stack) {
+        console.error(`[OrdersService] Stack Trace: ${emailError.stack}`);
+      }
     }
   }
 }

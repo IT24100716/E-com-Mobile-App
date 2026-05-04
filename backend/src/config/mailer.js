@@ -22,6 +22,9 @@ transporter.verify((err, success) => {
 
 const sendEmail = async (to, subject, text, html) => {
   try {
+    console.log(`[Mailer] Attempting to send email to: ${to}`);
+    console.log(`[Mailer] From: ${process.env.EMAIL_USER}`);
+
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to,
